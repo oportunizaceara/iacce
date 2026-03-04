@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "courses": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+    },
+    "lotResponsibles": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+    },
+    "actionLogs": {
+      ".read": "auth != null && auth.token.role == 'admin'",
+      ".write": "auth != null && auth.token.role == 'admin'"
+    },
+    "users": {
+      ".read": "auth != null && auth.token.role == 'admin'",
+      ".write": "auth != null && auth.token.role == 'admin'"
+    },
+    "calendarEvents": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "calendarTasks": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
+
