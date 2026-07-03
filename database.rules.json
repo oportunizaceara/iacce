@@ -23,6 +23,10 @@
     "calendarTasks": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "courseChecklists": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
     }
   }
 }

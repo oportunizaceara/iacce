@@ -4,7 +4,13 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/assets/CERTIFICADO.pdf',
+  '/assets/certificado.css',
+  '/assets/certificado/watermark.png',
+  '/assets/certificado/logo-iac.png',
+  '/assets/certificado/logo-governo-ce.png',
+  '/assets/certificado/assinatura-presidente.png'
 ];
 
 // Install event - cache resources

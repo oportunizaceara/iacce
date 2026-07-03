@@ -549,6 +549,7 @@
         margin: 0 !important;
       }
     }
+
     /* iOS FAB (Floating Action Button) */
     .fab {
       position: fixed;
@@ -866,6 +867,71 @@
       animation: pulse 2s infinite;
     }
 
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      transition: background-color 0.2s ease;
+    }
+
+    .checklist-item:hover {
+      background: rgba(0, 122, 255, 0.05);
+    }
+
+    body.dark .checklist-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .checklist-item.done label {
+      text-decoration: line-through;
+      color: #8e8e93;
+    }
+
+    .checklist-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-top: 2px;
+      accent-color: #007AFF;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .checklist-item input[type="checkbox"]:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .checklist-item-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .checklist-item:hover .checklist-item-actions {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .checklist-item-actions {
+        opacity: 1;
+      }
+    }
+
+    .tarefas-shelf-card {
+      aspect-ratio: auto;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .checklist-phase-locked {
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.8; }
@@ -979,11 +1045,11 @@
             </svg>
             Calendário
           </button>
-          <button onclick="window.open('https://alissonhryy.github.io/Almox/', '_blank'); toggleMenuDrawer();" id="tab-estoque-mobile" class="tab-btn admin-only w-full text-left flex items-center gap-3 px-4 py-3 border-l-4 border-transparent hover:bg-secondary/50 rounded-lg transition-colors">
+          <button onclick="switchTab('tarefas'); toggleMenuDrawer();" id="tab-tarefas-mobile" class="tab-btn admin-only w-full text-left flex items-center gap-3 px-4 py-3 border-l-4 border-transparent hover:bg-secondary/50 rounded-lg transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            Estoque
+            Tarefas
           </button>
           <button onclick="switchTab('settings'); toggleMenuDrawer();" id="tab-settings-mobile" class="tab-btn admin-only w-full text-left flex items-center gap-3 px-4 py-3 border-l-4 border-transparent hover:bg-secondary/50 rounded-lg transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1068,11 +1134,11 @@
             </svg>
             Calendário
           </button>
-          <button onclick="window.open('https://alissonhryy.github.io/Almox/', '_blank')" id="tab-estoque" class="tab-btn admin-only flex items-center gap-2 px-4 py-2.5 text-[#8e8e93] hover:text-[#007AFF] transition-colors font-medium">
+          <button onclick="switchTab('tarefas')" id="tab-tarefas" class="tab-btn admin-only flex items-center gap-2 px-4 py-2.5 text-[#8e8e93] hover:text-[#007AFF] transition-colors font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            Estoque
+            Tarefas
           </button>
           <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn admin-only flex items-center gap-2 px-4 py-2.5 text-[#8e8e93] hover:text-[#007AFF] transition-colors font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1275,6 +1341,68 @@
         </div>
       </div>
     </main>
+
+    <!-- Tarefas Tab Content -->
+    <main id="content-tarefas" class="container mx-auto px-2 md:px-4 py-6 space-y-6 hidden admin-only">
+      <div class="mb-2">
+        <h2 class="text-3xl font-bold text-foreground mb-2" style="letter-spacing: -0.02em;">Tarefas</h2>
+        <p class="text-muted-foreground">Checklist de preparação e acompanhamento das turmas que iniciam em breve ou estão em andamento</p>
+      </div>
+
+      <div id="tarefas-stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
+
+      <div class="card-secondary rounded-[20px] p-4">
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8e8e93] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" id="tarefas-search" placeholder="Pesquisar por ID, Tipologia ou Município..."
+            class="flex-1 px-4 py-2 bg-transparent text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#8e8e93] focus:outline-none"
+            oninput="renderTarefas()">
+        </div>
+      </div>
+
+      <div id="tarefas-no-results" class="hidden card-elegant rounded-[20px] p-10 text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#8e8e93] mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <p class="text-lg font-medium text-foreground mb-1">Nenhum resultado encontrado</p>
+        <p class="text-sm text-muted-foreground">Tente buscar por outro ID, tipologia ou município.</p>
+      </div>
+
+      <div id="tarefas-em-breve-section" class="space-y-4">
+        <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#FF9500]"></span>
+          Iniciando em breve
+        </h3>
+        <div id="tarefas-em-breve-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+      </div>
+
+      <div id="tarefas-em-andamento-section" class="space-y-4">
+        <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#007AFF]"></span>
+          Em andamento
+        </h3>
+        <div id="tarefas-em-andamento-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+      </div>
+
+      <div id="tarefas-empty" class="hidden card-elegant rounded-[20px] p-10 text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#8e8e93] mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+        <p class="text-lg font-medium text-foreground mb-1">Nenhuma turma pendente</p>
+        <p class="text-sm text-muted-foreground">Não há turmas em breve ou em andamento no momento.</p>
+      </div>
+    </main>
+
+  <!-- Modal Checklist de Tarefas -->
+  <div id="tarefas-checklist-modal" class="fixed inset-0 z-[1100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeTarefasChecklistModal(event)"></div>
+    <div class="modal-content w-full max-w-2xl max-h-[90vh] card-elegant md:rounded-2xl shadow-2xl overflow-hidden">
+      <div id="tarefas-checklist-modal-header" class="flex items-center justify-between p-6 border-b border-border/30"></div>
+      <div id="tarefas-checklist-modal-body" class="p-6 overflow-y-auto max-h-[calc(90vh-140px)] scrollbar-thin"></div>
+    </div>
+  </div>
 
     <!-- Settings Tab Content -->
     <main id="content-settings" class="container mx-auto px-2 md:px-4 py-6 space-y-6 hidden">
@@ -2048,7 +2176,7 @@
   <!-- Cronograma Course Modal -->
   <div id="cronograma-course-modal" class="fixed inset-0 z-[1100] hidden">
     <div class="modal-overlay absolute inset-0" onclick="closeCronogramaCourseModal(event)"></div>
-    <div class="modal-content w-full max-w-2xl max-h-[90vh] card-elegant md:rounded-2xl shadow-2xl overflow-hidden">
+    <div class="modal-content w-full max-w-3xl max-h-[90vh] card-elegant md:rounded-2xl shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between p-6 border-b border-border/30">
         <div>
           <h2 class="text-2xl font-semibold text-foreground">Detalhes do Curso</h2>
@@ -2497,10 +2625,12 @@
     
     const STORAGE_KEY_COURSES = 'dashboard_courses';
     const STORAGE_KEY_RESPONSIBLES = 'dashboard_responsibles';
+    const STORAGE_KEY_CHECKLISTS = 'course_checklists';
 
     // Load data - will be loaded from Firestore
     let courses = [];
     let lotResponsibles = {};
+    let courseChecklists = {};
     let filteredCourses = [];
     let dataMigrationDone = false;
     
@@ -2526,11 +2656,13 @@
       { title: 'Dashboard', content: 'Visualize todos os cursos organizados por lote. Use os filtros para encontrar cursos específicos.', target: 'tab-dashboard' },
       { title: 'Cronograma', content: 'Veja os cursos em formato de prateleira. Clique em um card para ver detalhes completos.', target: 'tab-cronograma' },
       { title: 'Calendário', content: 'Acompanhe datas de início e fim dos cursos. Adicione eventos e tarefas.', target: 'tab-calendar' },
+      { title: 'Tarefas', content: 'Checklist de preparação e acompanhamento das turmas em breve e em andamento.', target: 'tab-tarefas' },
       { title: 'Notificações', content: 'Receba alertas sobre cursos próximos de iniciar ou finalizar.', target: 'notifications-btn' },
       { title: 'Configurações', content: 'Gerencie usuários, importe dados, gere relatórios e configure o sistema.', target: 'tab-settings' }
     ];
     let currentTourStep = 0;
     let unsubscribeResponsibles = null;
+    let unsubscribeChecklists = null;
     window.editingResponsibleId = null; // Para controlar qual responsável está sendo editado
 
     const fieldLabels = {
@@ -2551,6 +2683,59 @@
       instrutor: 'INSTRUTOR'
     };
 
+    const CHECKLIST_TEMPLATE = {
+      inicializacao: [
+        { key: 'articulacao_data', label: 'Articulação de data' },
+        { key: 'contratacao_instrutor', label: 'Contratação de instrutor' },
+        { key: 'solicitacao_material', label: 'Solicitação de material' },
+        { key: 'montagem_kit_aluno', label: 'Montagem de kit Aluno' },
+        { key: 'instrumentais', label: 'Instrumentais' },
+        { key: 'separacao_material_execucao', label: 'Separação de material de execução' },
+        { key: 'confirmar_demandante', label: 'Confirmar com o Demandante' },
+        { key: 'abertura_curso', label: 'Abertura de curso realizada' }
+      ],
+      emAndamento: [
+        { key: 'grupo_whatsapp', label: 'Instrutora Criar o grupo Whatsapp' },
+        { key: 'acompanhar_fotos', label: 'Acompanhar andamento do curso com as fotos' },
+        { key: 'listagem_concludentes', label: 'Solicitar listagem dos concludentes' },
+        { key: 'confeccionar_certificados', label: 'Confeccionar Certificados' },
+        { key: 'entregar_certificado', label: 'Entregar Certificado' },
+        { key: 'curso_concluido', label: 'Curso concluído' }
+      ]
+    };
+
+    let currentTarefasModalCourseId = null;
+    let editingChecklistItem = null;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function initChecklistFromTemplate() {
+      return {
+        inicializacao: CHECKLIST_TEMPLATE.inicializacao.map(item => ({ ...item, checked: false })),
+        emAndamento: CHECKLIST_TEMPLATE.emAndamento.map(item => ({ ...item, checked: false }))
+      };
+    }
+
+    function migrateChecklistIfNeeded(courseId) {
+      const state = courseChecklists[courseId];
+      if (!state) return;
+      if (Array.isArray(state.inicializacao)) return;
+
+      const oldInit = state.inicializacao || {};
+      const oldAnd = state.emAndamento || {};
+      state.inicializacao = CHECKLIST_TEMPLATE.inicializacao.map(item => ({
+        ...item,
+        checked: !!oldInit[item.key]
+      }));
+      state.emAndamento = CHECKLIST_TEMPLATE.emAndamento.map(item => ({
+        ...item,
+        checked: !!oldAnd[item.key]
+      }));
+    }
+
     async function saveToRealtimeDatabase() {
       if (isUpdatingFromListener) {
         console.log('Ignorando salvamento - atualização vinda do listener');
@@ -2561,6 +2746,7 @@
         console.warn('Realtime Database não disponível, usando localStorage como fallback');
         localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
         localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
+        localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
         return;
       }
 
@@ -2577,6 +2763,9 @@
         // Save responsibles
         await set(ref(db, 'responsibles'), lotResponsibles);
         console.log('Responsáveis salvos no Realtime Database com sucesso');
+
+        // Save course checklists
+        await set(ref(db, 'courseChecklists'), courseChecklists);
         
         // Update last sync timestamp
         await set(ref(db, 'lastSync'), new Date().toISOString());
@@ -2591,6 +2780,22 @@
         // Fallback to localStorage
         localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
         localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
+        localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
+      }
+    }
+
+    async function saveCourseChecklists() {
+      if (isUpdatingFromListener) return;
+
+      localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
+
+      if (!window.database || !window.firebaseModules) return;
+
+      try {
+        const { ref, set } = window.firebaseModules;
+        await set(ref(window.database, 'courseChecklists'), courseChecklists);
+      } catch (error) {
+        console.error('Erro ao salvar checklists:', error);
       }
     }
 
@@ -2657,6 +2862,17 @@
           }
         }
         
+        // Try to load course checklists
+        try {
+          const checklistsSnapshot = await get(ref(db, 'courseChecklists'));
+          if (checklistsSnapshot.exists()) {
+            courseChecklists = checklistsSnapshot.val() || {};
+            localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
+          }
+        } catch (checklistError) {
+          console.warn('Erro ao carregar checklists:', checklistError);
+        }
+        
         filteredCourses = [...courses];
         console.log('✅ Dados sincronizados do Realtime Database com sucesso');
         
@@ -2689,6 +2905,9 @@
       if (unsubscribeResponsibles && typeof unsubscribeResponsibles === 'function') {
         unsubscribeResponsibles();
       }
+      if (unsubscribeChecklists && typeof unsubscribeChecklists === 'function') {
+        unsubscribeChecklists();
+      }
       
       try {
         // Listen to courses changes
@@ -2708,6 +2927,7 @@
                 localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
                 updateFilters();
                 applyFilters();
+                renderTarefas();
                 setTimeout(() => { isUpdatingFromListener = false; }, 100);
               }
             }
@@ -2748,6 +2968,30 @@
         });
         // Store unsubscribe function
         unsubscribeResponsibles = () => off(responsiblesRef, 'value', responsiblesCallback);
+        
+        // Listen to course checklists changes
+        const checklistsRef = ref(db, 'courseChecklists');
+        const checklistsCallback = (snapshot) => {
+          if (snapshot.exists() && !isUpdatingFromListener) {
+            const newChecklists = snapshot.val() || {};
+            const currentStr = JSON.stringify(courseChecklists);
+            const newStr = JSON.stringify(newChecklists);
+            if (currentStr !== newStr) {
+              isUpdatingFromListener = true;
+              courseChecklists = newChecklists;
+              localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
+              renderTarefas();
+              if (currentTarefasModalCourseId) {
+                renderTarefasChecklistModalContent(currentTarefasModalCourseId);
+              }
+              setTimeout(() => { isUpdatingFromListener = false; }, 100);
+            }
+          }
+        };
+        onValue(checklistsRef, checklistsCallback, (error) => {
+          console.warn('⚠️ Erro no listener de checklists:', error.code || error.message);
+        });
+        unsubscribeChecklists = () => off(checklistsRef, 'value', checklistsCallback);
         
         console.log('✅ Listeners em tempo real configurados com sucesso');
       } catch (error) {
@@ -3130,6 +3374,7 @@
       try {
         const localCourses = JSON.parse(localStorage.getItem(STORAGE_KEY_COURSES)) || [];
         const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
+        courseChecklists = JSON.parse(localStorage.getItem(STORAGE_KEY_CHECKLISTS)) || {};
         courses = localCourses;
         lotResponsibles = localResponsibles;
         filteredCourses = [...courses];
@@ -3385,9 +3630,447 @@
       }
     }
 
+    function getCourseChecklistState(courseId) {
+      if (!courseChecklists[courseId]) {
+        courseChecklists[courseId] = initChecklistFromTemplate();
+      } else {
+        migrateChecklistIfNeeded(courseId);
+      }
+      return courseChecklists[courseId];
+    }
+
+    function getChecklistItems(courseId, phase) {
+      const state = getCourseChecklistState(courseId);
+      return Array.isArray(state[phase]) ? state[phase] : [];
+    }
+
+    function getChecklistProgress(phase, checklistState) {
+      const items = Array.isArray(checklistState[phase]) ? checklistState[phase] : [];
+      const checked = items.filter(item => item.checked).length;
+      return { checked, total: items.length, percent: items.length ? Math.round((checked / items.length) * 100) : 0 };
+    }
+
+    function isEmAndamentoPhaseUnlocked(course, checklistState) {
+      const status = normalizeStatus(course.status);
+      if (status === 'em andamento' || status === 'em andamento.') return true;
+      const initProgress = getChecklistProgress('inicializacao', checklistState);
+      return initProgress.total > 0 && initProgress.checked === initProgress.total;
+    }
+
+    function getCoursesEmBreve() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return courses.filter(c => {
+        const status = normalizeStatus(c.status);
+        if (status === 'concluído' || status === 'concluido') return false;
+        if (status === 'em andamento' || status === 'em andamento.') return false;
+
+        if (status === 'pendente' || status === 'planejado') return true;
+
+        if (c.dataInicio) {
+          const startDate = new Date(c.dataInicio);
+          startDate.setHours(0, 0, 0, 0);
+          const daysDiff = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
+          return daysDiff >= 0 && daysDiff <= 60;
+        }
+
+        return false;
+      }).sort((a, b) => {
+        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date('9999-12-31');
+        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date('9999-12-31');
+        return dateA - dateB;
+      });
+    }
+
+    function getCoursesEmAndamentoForTarefas() {
+      return courses.filter(c => {
+        const status = normalizeStatus(c.status);
+        return status === 'em andamento' || status === 'em andamento.';
+      }).sort((a, b) => {
+        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date(0);
+        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date(0);
+        return dateA - dateB;
+      });
+    }
+
+    function canEditChecklist() {
+      return isLoggedIn && userRole === 'admin';
+    }
+
+    function openTarefasChecklistModal(courseId) {
+      const course = courses.find(c => c.id === courseId);
+      if (!course) return;
+
+      currentTarefasModalCourseId = courseId;
+      editingChecklistItem = null;
+      document.getElementById('tarefas-checklist-modal').classList.remove('hidden');
+      document.body.classList.add('modal-open');
+      renderTarefasChecklistModalContent(courseId);
+    }
+
+    function closeTarefasChecklistModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('modal-overlay')) return;
+      document.getElementById('tarefas-checklist-modal').classList.add('hidden');
+      document.body.classList.remove('modal-open');
+      currentTarefasModalCourseId = null;
+      editingChecklistItem = null;
+    }
+
+    function refreshTarefasChecklistModal() {
+      if (currentTarefasModalCourseId) {
+        renderTarefasChecklistModalContent(currentTarefasModalCourseId);
+      }
+      renderTarefas();
+    }
+
+    function toggleCourseChecklistItem(courseId, phase, itemKey) {
+      if (!canEditChecklist()) {
+        showToast('Apenas administradores podem marcar tarefas.', 'error');
+        return;
+      }
+
+      const course = courses.find(c => c.id === courseId);
+      const state = getCourseChecklistState(courseId);
+
+      if (phase === 'emAndamento' && course && !isEmAndamentoPhaseUnlocked(course, state)) {
+        showToast('Conclua todas as tarefas de Inicialização primeiro.', 'error');
+        return;
+      }
+
+      const item = state[phase].find(i => i.key === itemKey);
+      if (item) {
+        item.checked = !item.checked;
+        saveCourseChecklists();
+        refreshTarefasChecklistModal();
+      }
+    }
+
+    function addChecklistItem(courseId, phase) {
+      if (!canEditChecklist()) return;
+
+      const course = courses.find(c => c.id === courseId);
+      const state = getCourseChecklistState(courseId);
+
+      if (phase === 'emAndamento' && course && !isEmAndamentoPhaseUnlocked(course, state)) {
+        showToast('Conclua todas as tarefas de Inicialização primeiro.', 'error');
+        return;
+      }
+
+      const label = prompt('Nome da nova tarefa:');
+      if (!label || !label.trim()) return;
+
+      const key = `custom_${Date.now()}`;
+      state[phase].push({ key, label: label.trim(), checked: false });
+      saveCourseChecklists();
+      editingChecklistItem = { courseId, phase, itemKey: key };
+      refreshTarefasChecklistModal();
+    }
+
+    function startEditChecklistItem(courseId, phase, itemKey) {
+      if (!canEditChecklist()) return;
+      editingChecklistItem = { courseId, phase, itemKey };
+      refreshTarefasChecklistModal();
+      setTimeout(() => {
+        const input = document.getElementById(`edit-checklist-input-${itemKey}`);
+        if (input) { input.focus(); input.select(); }
+      }, 50);
+    }
+
+    function saveEditChecklistItem(courseId, phase, itemKey) {
+      if (!canEditChecklist()) return;
+
+      const input = document.getElementById(`edit-checklist-input-${itemKey}`);
+      const newLabel = input?.value.trim();
+      if (!newLabel) {
+        showToast('O nome da tarefa não pode ser vazio.', 'error');
+        return;
+      }
+
+      const state = getCourseChecklistState(courseId);
+      const item = state[phase].find(i => i.key === itemKey);
+      if (item) {
+        item.label = newLabel;
+        saveCourseChecklists();
+      }
+      editingChecklistItem = null;
+      refreshTarefasChecklistModal();
+    }
+
+    function cancelEditChecklistItem() {
+      editingChecklistItem = null;
+      refreshTarefasChecklistModal();
+    }
+
+    function deleteChecklistItem(courseId, phase, itemKey) {
+      if (!canEditChecklist()) return;
+      if (!confirm('Excluir esta tarefa do checklist?')) return;
+
+      const state = getCourseChecklistState(courseId);
+      state[phase] = state[phase].filter(i => i.key !== itemKey);
+      saveCourseChecklists();
+      editingChecklistItem = null;
+      refreshTarefasChecklistModal();
+    }
+
+    function renderChecklistPhaseInModal(course, phase, phaseLabel, phaseColor) {
+      const checklistState = getCourseChecklistState(course.id);
+      const items = getChecklistItems(course.id, phase);
+      const progress = getChecklistProgress(phase, checklistState);
+      const unlocked = phase === 'inicializacao' || isEmAndamentoPhaseUnlocked(course, checklistState);
+      const canEdit = canEditChecklist() && unlocked;
+      const lockedClass = unlocked ? '' : 'checklist-phase-locked';
+
+      return `
+        <div class="mb-6 ${lockedClass}">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-base font-semibold text-foreground flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: ${phaseColor}"></span>
+              ${phaseLabel}
+              ${!unlocked ? '<span class="text-xs font-normal text-muted-foreground">(conclua a Inicialização)</span>' : ''}
+            </h4>
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-secondary/50 text-muted-foreground">${progress.checked}/${progress.total}</span>
+          </div>
+          <div class="w-full h-2 bg-secondary/50 rounded-full mb-4 overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-300" style="width: ${progress.percent}%; background: ${phaseColor}"></div>
+          </div>
+          <div class="space-y-1">
+            ${items.length === 0 ? '<p class="text-sm text-muted-foreground py-2">Nenhuma tarefa nesta etapa.</p>' : items.map(item => {
+              const isEditing = editingChecklistItem?.courseId === course.id && editingChecklistItem?.phase === phase && editingChecklistItem?.itemKey === item.key;
+              const safeId = `chk-${course.id}-${phase}-${item.key}`.replace(/[^a-zA-Z0-9-_]/g, '_');
+              return `
+                <div class="checklist-item ${item.checked ? 'done' : ''}">
+                  <input type="checkbox" id="${safeId}" ${item.checked ? 'checked' : ''} ${canEdit ? '' : 'disabled'}
+                    onchange="toggleCourseChecklistItem('${course.id}', '${phase}', '${item.key}')">
+                  ${isEditing ? `
+                    <div class="flex-1 flex items-center gap-2">
+                      <input type="text" id="edit-checklist-input-${item.key}" value="${escapeHtml(item.label)}"
+                        class="flex-1 px-3 py-1.5 text-sm bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        onkeydown="if(event.key==='Enter')saveEditChecklistItem('${course.id}','${phase}','${item.key}');if(event.key==='Escape')cancelEditChecklistItem()">
+                      <button onclick="saveEditChecklistItem('${course.id}','${phase}','${item.key}')" class="p-1.5 text-[#34C759] hover:bg-[rgba(52,199,89,0.15)] rounded-lg" title="Salvar">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                      </button>
+                      <button onclick="cancelEditChecklistItem()" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.15)] rounded-lg" title="Cancelar">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  ` : `
+                    <label for="${safeId}" class="text-sm text-foreground cursor-pointer flex-1">${escapeHtml(item.label)}</label>
+                    ${canEdit ? `
+                      <div class="checklist-item-actions">
+                        <button onclick="startEditChecklistItem('${course.id}','${phase}','${item.key}')" class="p-1.5 text-[#007AFF] hover:bg-[rgba(0,122,255,0.15)] rounded-lg" title="Editar">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <button onclick="deleteChecklistItem('${course.id}','${phase}','${item.key}')" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.15)] rounded-lg" title="Excluir">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+                    ` : ''}
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+          ${canEdit ? `
+            <button onclick="addChecklistItem('${course.id}','${phase}')" class="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-dashed border-[#007AFF]/40 text-[#007AFF] hover:bg-[rgba(0,122,255,0.08)] rounded-[12px] transition-colors text-sm font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Adicionar tarefa
+            </button>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function renderTarefasChecklistModalContent(courseId) {
+      const course = courses.find(c => c.id === courseId);
+      if (!course) return;
+
+      const checklistState = getCourseChecklistState(courseId);
+      const initProgress = getChecklistProgress('inicializacao', checklistState);
+      const andProgress = getChecklistProgress('emAndamento', checklistState);
+      const totalItems = initProgress.total + andProgress.total;
+      const totalChecked = initProgress.checked + andProgress.checked;
+      const overallPercent = totalItems ? Math.round((totalChecked / totalItems) * 100) : 0;
+      const statusClass = getStatusClass(course.status);
+
+      document.getElementById('tarefas-checklist-modal-header').innerHTML = `
+        <div class="flex-1 min-w-0 pr-4">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h2 class="text-xl font-semibold text-foreground truncate">${escapeHtml(course.tipologia || 'Sem nome')}</h2>
+            <span class="status-badge ${statusClass}">${escapeHtml(course.status || 'Pendente')}</span>
+          </div>
+          <div class="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            <span>ID: ${escapeHtml(course.idCurso || '-')}</span>
+            <span>Lote ${escapeHtml(String(course.lote || '-'))}</span>
+            <span>${escapeHtml(course.municipio || '-')}</span>
+            ${course.dataInicio ? `<span>Início: ${formatDate(course.dataInicio)}</span>` : ''}
+          </div>
+          <div class="mt-3 flex items-center gap-3">
+            <div class="flex-1 h-2 bg-secondary/50 rounded-full overflow-hidden">
+              <div class="h-full bg-[#007AFF] rounded-full transition-all" style="width: ${overallPercent}%"></div>
+            </div>
+            <span class="text-sm font-bold text-[#007AFF]">${overallPercent}%</span>
+          </div>
+        </div>
+        <button onclick="closeTarefasChecklistModal()" class="p-2 hover:bg-secondary/50 rounded-lg transition-colors flex-shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      `;
+
+      document.getElementById('tarefas-checklist-modal-body').innerHTML = `
+        ${renderChecklistPhaseInModal(course, 'inicializacao', 'Inicialização', '#FF9500')}
+        ${renderChecklistPhaseInModal(course, 'emAndamento', 'Em andamento', '#007AFF')}
+      `;
+    }
+
+    function renderTarefasShelfCard(course) {
+      const checklistState = getCourseChecklistState(course.id);
+      const initProgress = getChecklistProgress('inicializacao', checklistState);
+      const andProgress = getChecklistProgress('emAndamento', checklistState);
+      const totalItems = initProgress.total + andProgress.total;
+      const totalChecked = initProgress.checked + andProgress.checked;
+      const overallPercent = totalItems ? Math.round((totalChecked / totalItems) * 100) : 0;
+      const statusClass = getStatusClass(course.status);
+
+      return `
+        <div class="tarefas-shelf-card card-elegant rounded-[20px] p-4 cursor-pointer hover:scale-[1.02] transition-all duration-200"
+          onclick="openTarefasChecklistModal('${course.id}')">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-sm line-clamp-2 flex-1" style="letter-spacing: -0.01em;">${escapeHtml(course.tipologia || 'Sem nome')}</h4>
+            <span class="status-badge ${statusClass} text-[10px] px-1.5 py-0.5">${escapeHtml(course.status || 'Pendente')}</span>
+          </div>
+          <p class="text-[10px] text-[#8e8e93] font-mono mb-3">ID: ${escapeHtml(course.idCurso || '-')}</p>
+          <div class="space-y-1.5 text-xs text-[#8e8e93] flex-1">
+            <div class="flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              <span>Lote ${escapeHtml(String(course.lote || '-'))}</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span class="truncate">${escapeHtml(course.municipio || '-')}</span>
+            </div>
+            ${course.dataInicio ? `
+              <div class="flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span>${formatDate(course.dataInicio)}</span>
+              </div>
+            ` : ''}
+          </div>
+          <div class="mt-3 pt-3 border-t border-border/30">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[10px] text-[#8e8e93]">Progresso</span>
+              <span class="text-xs font-bold text-[#007AFF]">${overallPercent}%</span>
+            </div>
+            <div class="w-full h-1.5 bg-secondary/50 rounded-full overflow-hidden">
+              <div class="h-full bg-[#007AFF] rounded-full transition-all" style="width: ${overallPercent}%"></div>
+            </div>
+            <div class="flex justify-between mt-2 text-[10px] text-[#8e8e93]">
+              <span>Init. ${initProgress.checked}/${initProgress.total}</span>
+              <span>And. ${andProgress.checked}/${andProgress.total}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function filterTarefasBySearch(coursesList) {
+      const searchTerm = document.getElementById('tarefas-search')?.value.toLowerCase().trim() || '';
+      if (!searchTerm) return coursesList;
+
+      return coursesList.filter(course => {
+        const id = (course.idCurso || '').toLowerCase();
+        const tipologia = (course.tipologia || '').toLowerCase();
+        const municipio = (course.municipio || '').toLowerCase();
+        return id.includes(searchTerm) || tipologia.includes(searchTerm) || municipio.includes(searchTerm);
+      });
+    }
+
+    function renderTarefas() {
+      const emBreveList = document.getElementById('tarefas-em-breve-list');
+      const emAndamentoList = document.getElementById('tarefas-em-andamento-list');
+      const emBreveSection = document.getElementById('tarefas-em-breve-section');
+      const emAndamentoSection = document.getElementById('tarefas-em-andamento-section');
+      const emptyEl = document.getElementById('tarefas-empty');
+      const noResultsEl = document.getElementById('tarefas-no-results');
+      const statsEl = document.getElementById('tarefas-stats');
+
+      if (!emBreveList || !emAndamentoList) return;
+
+      const emBreveAll = getCoursesEmBreve();
+      const emAndamentoAll = getCoursesEmAndamentoForTarefas();
+      const totalAll = emBreveAll.length + emAndamentoAll.length;
+
+      const emBreve = filterTarefasBySearch(emBreveAll);
+      const emAndamento = filterTarefasBySearch(emAndamentoAll);
+      const totalFiltered = emBreve.length + emAndamento.length;
+      const hasSearch = !!document.getElementById('tarefas-search')?.value.trim();
+
+      let totalItems = 0;
+      let totalChecked = 0;
+      [...emBreveAll, ...emAndamentoAll].forEach(course => {
+        const state = getCourseChecklistState(course.id);
+        const init = getChecklistProgress('inicializacao', state);
+        const and = getChecklistProgress('emAndamento', state);
+        totalItems += init.total + and.total;
+        totalChecked += init.checked + and.checked;
+      });
+
+      if (statsEl) {
+        statsEl.innerHTML = `
+          <div class="card-elegant rounded-[16px] p-4">
+            <p class="text-xs text-muted-foreground mb-1">Turmas em breve</p>
+            <p class="text-2xl font-bold text-[#FF9500]">${hasSearch ? emBreve.length : emBreveAll.length}</p>
+          </div>
+          <div class="card-elegant rounded-[16px] p-4">
+            <p class="text-xs text-muted-foreground mb-1">Em andamento</p>
+            <p class="text-2xl font-bold text-[#007AFF]">${hasSearch ? emAndamento.length : emAndamentoAll.length}</p>
+          </div>
+          <div class="card-elegant rounded-[16px] p-4">
+            <p class="text-xs text-muted-foreground mb-1">Progresso geral</p>
+            <p class="text-2xl font-bold text-[#34C759]">${totalItems ? Math.round((totalChecked / totalItems) * 100) : 0}%</p>
+          </div>
+        `;
+      }
+
+      if (totalAll === 0) {
+        emptyEl?.classList.remove('hidden');
+        noResultsEl?.classList.add('hidden');
+        emBreveSection?.classList.add('hidden');
+        emAndamentoSection?.classList.add('hidden');
+        return;
+      }
+
+      emptyEl?.classList.add('hidden');
+
+      if (hasSearch && totalFiltered === 0) {
+        noResultsEl?.classList.remove('hidden');
+        emBreveSection?.classList.add('hidden');
+        emAndamentoSection?.classList.add('hidden');
+        return;
+      }
+
+      noResultsEl?.classList.add('hidden');
+
+      if (emBreve.length > 0) {
+        emBreveSection?.classList.remove('hidden');
+        emBreveList.innerHTML = emBreve.map(renderTarefasShelfCard).join('');
+      } else {
+        emBreveSection?.classList.add('hidden');
+        emBreveList.innerHTML = '';
+      }
+
+      if (emAndamento.length > 0) {
+        emAndamentoSection?.classList.remove('hidden');
+        emAndamentoList.innerHTML = emAndamento.map(renderTarefasShelfCard).join('');
+      } else {
+        emAndamentoSection?.classList.add('hidden');
+        emAndamentoList.innerHTML = '';
+      }
+    }
+
     function switchTab(tab) {
       // Remove active de todas as tabs
-      const tabs = ['dashboard', 'cronograma', 'calendar', 'settings'];
+      const tabs = ['dashboard', 'cronograma', 'calendar', 'tarefas', 'settings'];
       tabs.forEach(t => {
         const tabEl = document.getElementById(`tab-${t}`);
         const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -3433,6 +4116,8 @@
         } else if (tab === 'calendar') {
           renderCalendar();
           renderTasksList();
+        } else if (tab === 'tarefas') {
+          renderTarefas();
         }
       }
     }
@@ -3482,6 +4167,10 @@
       if (calendarContent && !calendarContent.classList.contains('hidden')) {
         renderCalendar();
         renderTasksList();
+      }
+      const tarefasContent = document.getElementById('content-tarefas');
+      if (tarefasContent && !tarefasContent.classList.contains('hidden')) {
+        renderTarefas();
       }
       // Verificar e atualizar status automaticamente
       checkAndUpdateAllCourseStatuses();
@@ -3835,9 +4524,6 @@
         return endDate < today && normalizeStatus(c.status) !== 'concluído';
       });
       
-      // Materiais pendentes (simulado - pode ser integrado com sistema de almoxarifado)
-      const pendingMaterials = []; // Placeholder para integração futura
-      
       container.innerHTML = `
         ${inProgressCourses.length > 0 ? `
           <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all border-l-4 border-[#007AFF]" onclick="filterByInProgress()">
@@ -3887,30 +4573,6 @@
             <div class="data-highlight text-[#FF9500] mb-2">${upcomingEvents.length}</div>
             <p class="text-xs text-[#8e8e93] mb-3">${upcomingEvents.length === 1 ? 'evento próximo' : 'eventos próximos'}</p>
             <div class="mt-3 text-sm text-[#FF9500] font-medium">Ver calendário →</div>
-          </div>
-        ` : ''}
-        
-        ${pendingMaterials.length > 0 ? `
-          <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all" onclick="window.open('https://alissonhryy.github.io/Almox/', '_blank')">
-            <div class="flex items-start justify-between mb-3">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#FF9500]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                  <h3 class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]">Materiais Pendentes</h3>
-                </div>
-                <p class="text-sm text-[#8e8e93]">Requerem devolução</p>
-              </div>
-              <div class="w-12 h-12 bg-[rgba(255,149,0,0.15)] rounded-[14px] flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-[#FF9500]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-              </div>
-            </div>
-            <div class="data-highlight text-[#FF9500] mb-2">${pendingMaterials.length}</div>
-            <p class="text-xs text-[#8e8e93] mb-3">${pendingMaterials.length === 1 ? 'material pendente' : 'materiais pendentes'}</p>
-            <div class="mt-3 text-sm text-[#FF9500] font-medium">Ver almoxarifado →</div>
           </div>
         ` : ''}
         
@@ -6981,6 +7643,14 @@
                   <span class="text-xs">${formatDate(course.dataInicio)} - ${course.dataFim ? formatDate(course.dataFim) : '?'}</span>
                 </div>
                 ` : ''}
+                ${(course.alunos && course.alunos.length > 0) ? `
+                <div class="flex items-center gap-2 text-[#007AFF]">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <span class="text-xs font-medium">${course.alunos.length} aluno(s)</span>
+                </div>
+                ` : ''}
                 ${course.concludentes !== null ? `
                 <div class="flex items-center gap-2 text-[#8e8e93]">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -7354,6 +8024,956 @@
       }
     }
 
+    // --- Alunos e Documentos PDF (Cronograma) ---
+    let editingCronogramaAlunoId = null;
+
+    function ensureCourseAlunos(course) {
+      if (!Array.isArray(course.alunos)) course.alunos = [];
+      return course.alunos;
+    }
+
+    function syncCronogramaAlunosToCourse() {
+      if (!currentEditCourse) return;
+      const idx = courses.findIndex(c => c.id === currentEditCourse.id);
+      if (idx !== -1) {
+        courses[idx].alunos = currentEditCourse.alunos || [];
+        const fIdx = filteredCourses.findIndex(c => c.id === currentEditCourse.id);
+        if (fIdx !== -1) filteredCourses[fIdx].alunos = courses[idx].alunos;
+      }
+    }
+
+    function saveCronogramaAlunos() {
+      syncCronogramaAlunosToCourse();
+      saveToStorage();
+    }
+
+    function renderCronogramaAlunosList() {
+      if (!currentEditCourse) return;
+      const alunos = ensureCourseAlunos(currentEditCourse);
+      const listEl = document.getElementById('cronograma-alunos-list');
+      const addSection = document.getElementById('cronograma-alunos-add');
+      const countEl = document.getElementById('cronograma-alunos-count');
+      const canEdit = isLoggedIn && userRole === 'admin';
+
+      if (countEl) countEl.textContent = `${alunos.length} aluno(s) cadastrado(s)`;
+      if (addSection) addSection.classList.toggle('hidden', !canEdit);
+
+      if (!listEl) return;
+
+      if (alunos.length === 0) {
+        listEl.innerHTML = '<p class="text-sm text-muted-foreground py-2">Nenhum aluno cadastrado. Adicione os nomes para gerar certificados e instrumentais.</p>';
+        return;
+      }
+
+      listEl.innerHTML = alunos.map((aluno, index) => {
+        const isEditing = editingCronogramaAlunoId === aluno.id;
+        if (isEditing && canEdit) {
+          return `
+            <div class="flex items-center gap-2 p-2 bg-secondary/30 rounded-lg">
+              <span class="text-xs text-muted-foreground w-6">${index + 1}.</span>
+              <input type="text" id="edit-aluno-nome-${aluno.id}" value="${escapeHtml(aluno.nome)}"
+                class="flex-1 px-2 py-1.5 text-sm bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+              <input type="text" id="edit-aluno-cpf-${aluno.id}" value="${escapeHtml(aluno.cpf || '')}" placeholder="CPF"
+                class="w-32 px-2 py-1.5 text-sm bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+              <button onclick="saveEditCronogramaAluno('${aluno.id}')" class="p-1.5 text-[#34C759] hover:bg-[rgba(52,199,89,0.15)] rounded-lg" title="Salvar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </button>
+              <button onclick="cancelEditCronogramaAluno()" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.15)] rounded-lg" title="Cancelar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          `;
+        }
+        return `
+          <div class="flex items-center gap-2 p-2 bg-secondary/20 rounded-lg group">
+            <span class="text-xs text-muted-foreground w-6 flex-shrink-0">${index + 1}.</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-foreground truncate">${escapeHtml(aluno.nome)}</p>
+              ${aluno.cpf ? `<p class="text-xs text-muted-foreground">CPF: ${escapeHtml(aluno.cpf)}</p>` : ''}
+            </div>
+            ${canEdit ? `
+              <div class="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <button onclick="startEditCronogramaAluno('${aluno.id}')" class="p-1.5 text-[#007AFF] hover:bg-[rgba(0,122,255,0.15)] rounded-lg" title="Editar">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button onclick="removeCronogramaAluno('${aluno.id}')" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.15)] rounded-lg" title="Excluir">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addCronogramaAluno() {
+      if (!currentEditCourse || !isLoggedIn || userRole !== 'admin') return;
+      const nome = document.getElementById('cronograma-aluno-nome')?.value.trim();
+      if (!nome) { showToast('Informe o nome do aluno.', 'error'); return; }
+      const cpf = document.getElementById('cronograma-aluno-cpf')?.value.trim() || '';
+      ensureCourseAlunos(currentEditCourse).push({ id: `aluno-${Date.now()}`, nome, cpf });
+      document.getElementById('cronograma-aluno-nome').value = '';
+      document.getElementById('cronograma-aluno-cpf').value = '';
+      saveCronogramaAlunos();
+      renderCronogramaAlunosList();
+      showToast('Aluno adicionado!', 'success');
+    }
+
+    function importCronogramaAlunosBulk() {
+      if (!currentEditCourse || !isLoggedIn || userRole !== 'admin') return;
+      const text = document.getElementById('cronograma-alunos-bulk')?.value.trim();
+      if (!text) return;
+      const nomes = text.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+      if (nomes.length === 0) return;
+      const alunos = ensureCourseAlunos(currentEditCourse);
+      nomes.forEach((nome, i) => {
+        alunos.push({ id: `aluno-${Date.now()}-${i}`, nome, cpf: '' });
+      });
+      document.getElementById('cronograma-alunos-bulk').value = '';
+      saveCronogramaAlunos();
+      renderCronogramaAlunosList();
+      showToast(`${nomes.length} aluno(s) importado(s)!`, 'success');
+    }
+
+    function startEditCronogramaAluno(alunoId) {
+      editingCronogramaAlunoId = alunoId;
+      renderCronogramaAlunosList();
+    }
+
+    function saveEditCronogramaAluno(alunoId) {
+      if (!currentEditCourse) return;
+      const nome = document.getElementById(`edit-aluno-nome-${alunoId}`)?.value.trim();
+      if (!nome) { showToast('O nome não pode ser vazio.', 'error'); return; }
+      const cpf = document.getElementById(`edit-aluno-cpf-${alunoId}`)?.value.trim() || '';
+      const aluno = ensureCourseAlunos(currentEditCourse).find(a => a.id === alunoId);
+      if (aluno) { aluno.nome = nome; aluno.cpf = cpf; }
+      editingCronogramaAlunoId = null;
+      saveCronogramaAlunos();
+      renderCronogramaAlunosList();
+    }
+
+    function cancelEditCronogramaAluno() {
+      editingCronogramaAlunoId = null;
+      renderCronogramaAlunosList();
+    }
+
+    function removeCronogramaAluno(alunoId) {
+      if (!currentEditCourse || !confirm('Remover este aluno da turma?')) return;
+      currentEditCourse.alunos = ensureCourseAlunos(currentEditCourse).filter(a => a.id !== alunoId);
+      saveCronogramaAlunos();
+      renderCronogramaAlunosList();
+    }
+
+    function sanitizePdfFilename(str) {
+      return (str || 'documento').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40);
+    }
+
+    function getJsPDFInstance() {
+      const { jsPDF } = window.jspdf;
+      if (!jsPDF) {
+        alert('Biblioteca jsPDF não carregada. Recarregue a página.');
+        return null;
+      }
+      return jsPDF;
+    }
+
+    function getCourseForDocuments() {
+      if (!currentEditCourse) {
+        showToast('Nenhum curso selecionado.', 'error');
+        return null;
+      }
+      if (!isLoggedIn) {
+        openLoginModal();
+        return null;
+      }
+      return currentEditCourse;
+    }
+
+    function addPdfCourseHeader(doc, course, title, startY) {
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = startY || 20;
+
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(0, 122, 255);
+      doc.text('IAC - Instituto de Arte e Cidadania do Ceará', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(13);
+      doc.setTextColor(0, 0, 0);
+      doc.text(title, pageWidth / 2, y, { align: 'center' });
+      y += 12;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(60, 60, 60);
+
+      const infoRows = [
+        ['Tipologia:', course.tipologia || '-'],
+        ['ID do Curso:', course.idCurso || '-'],
+        ['Município:', course.municipio || '-'],
+        ['Lote:', course.lote != null ? String(course.lote) : '-'],
+        ['Carga Horária:', course.cargaHoraria ? `${course.cargaHoraria}h` : '-'],
+        ['Turno:', course.turno || '-'],
+        ['Instrutor(a):', course.instrutor || '-'],
+        ['Período:', `${course.dataInicio ? formatDate(course.dataInicio) : '?'} a ${course.dataFim ? formatDate(course.dataFim) : '?'}`],
+        ['Endereço:', course.endereco || '-']
+      ];
+
+      infoRows.forEach(([label, value]) => {
+        doc.setFont(undefined, 'bold');
+        doc.text(label, margin, y);
+        doc.setFont(undefined, 'normal');
+        const lines = doc.splitTextToSize(String(value), pageWidth - margin - 50);
+        doc.text(lines, margin + 38, y);
+        y += Math.max(5, lines.length * 5);
+      });
+
+      doc.setDrawColor(0, 122, 255);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y + 2, pageWidth - margin, y + 2);
+      return y + 8;
+    }
+
+    function checkPdfPageBreak(doc, y, needed, margin) {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (y + needed > pageHeight - margin) {
+        doc.addPage();
+        return margin + 10;
+      }
+      return y;
+    }
+
+    function downloadCoursePDF(doc, course, suffix) {
+      const filename = `IAC_${sanitizePdfFilename(suffix)}_${sanitizePdfFilename(course.idCurso || course.id)}.pdf`;
+      doc.save(filename);
+      showToast('PDF gerado com sucesso!', 'success');
+    }
+
+    function generateInstrumentalPDF(type) {
+      const course = getCourseForDocuments();
+      if (!course) return;
+      const jsPDF = getJsPDFInstance();
+      if (!jsPDF) return;
+
+      const titles = {
+        frequencia: 'Formulário de Frequência',
+        plano_aula: 'Plano de Aula',
+        avaliacao_educando: 'Avaliação do Educando',
+        avaliacao_educador: 'Avaliação do Educador'
+      };
+
+      const doc = new jsPDF('portrait');
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = addPdfCourseHeader(doc, course, titles[type] || 'Instrumental', 20);
+      const alunos = ensureCourseAlunos(course);
+
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Modelo provisório — será substituído pelo template oficial do IAC', margin, y);
+      y += 8;
+
+      if (type === 'frequencia') {
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont(undefined, 'bold');
+        const cols = ['Nº', 'Nome do Aluno'];
+        const dayCols = 10;
+        for (let d = 1; d <= dayCols; d++) cols.push(String(d));
+        const colW = (pageWidth - margin * 2) / (2 + dayCols);
+        let x = margin;
+        cols.forEach(col => { doc.text(col, x + 1, y); x += colW; });
+        y += 4;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 5;
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(8);
+        const rows = alunos.length > 0 ? alunos : [{ nome: '(cadastre alunos no curso)' }];
+        rows.forEach((aluno, i) => {
+          y = checkPdfPageBreak(doc, y, 8, margin);
+          x = margin;
+          doc.text(String(i + 1), x + 1, y); x += colW;
+          doc.text(doc.splitTextToSize(aluno.nome, colW * 2 - 2)[0], x + 1, y); x += colW * 2;
+          for (let d = 0; d < dayCols; d++) { doc.rect(x + 2, y - 4, colW - 4, 6); x += colW; }
+          y += 7;
+        });
+      } else if (type === 'plano_aula') {
+        const sections = ['Objetivos:', 'Conteúdo Programático:', 'Metodologia:', 'Recursos Didáticos:', 'Avaliação:', 'Observações:'];
+        doc.setFontSize(10);
+        sections.forEach(section => {
+          y = checkPdfPageBreak(doc, y, 30, margin);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(0, 0, 0);
+          doc.text(section, margin, y);
+          y += 6;
+          doc.setFont(undefined, 'normal');
+          for (let i = 0; i < 4; i++) {
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 8;
+          }
+          y += 4;
+        });
+      } else if (type === 'avaliacao_educando') {
+        const rows = alunos.length > 0 ? alunos : [{ nome: '(cadastre alunos)' }];
+        rows.forEach((aluno, i) => {
+          y = checkPdfPageBreak(doc, y, 40, margin);
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(10);
+          doc.text(`Educando ${i + 1}: ${aluno.nome}`, margin, y);
+          y += 8;
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(9);
+          ['Participação:', 'Desempenho:', 'Assiduidade:', 'Observações:'].forEach(crit => {
+            doc.text(crit, margin, y);
+            doc.line(margin + 30, y, pageWidth - margin, y);
+            y += 8;
+          });
+          y += 6;
+        });
+      } else if (type === 'avaliacao_educador') {
+        doc.setFontSize(10);
+        ['Nome do Educador:', 'Qualidade do conteúdo ministrado:', 'Pontualidade:', 'Relacionamento com a turma:', 'Cumprimento do plano de aula:', 'Observações gerais:'].forEach(field => {
+          y = checkPdfPageBreak(doc, y, 15, margin);
+          doc.setFont(undefined, 'bold');
+          doc.text(field, margin, y);
+          y += 6;
+          doc.setFont(undefined, 'normal');
+          doc.line(margin, y, pageWidth - margin, y);
+          y += 10;
+        });
+        y += 5;
+        doc.setFont(undefined, 'bold');
+        doc.text('Assinatura do Responsável: _______________________________________', margin, y);
+      }
+
+      downloadCoursePDF(doc, course, titles[type]);
+    }
+
+    function formatDateLong(dateStr) {
+      if (!dateStr) return '___ de _____________ de _____';
+      const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+      let day, monthIdx, year;
+      const dateOnly = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+        [year, monthIdx, day] = dateOnly.split('-').map(Number);
+        monthIdx -= 1;
+      } else {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '___ de _____________ de _____';
+        day = d.getDate();
+        monthIdx = d.getMonth();
+        year = d.getFullYear();
+      }
+      return `${day} de ${months[monthIdx]} de ${year}`;
+    }
+
+    function formatPeriodLong(inicio, fim) {
+      if (!inicio && !fim) return '___ de _____________ de _____ a ___ de _____________ de _____';
+      return `${formatDateLong(inicio)} a ${formatDateLong(fim)}`;
+    }
+
+    const CERTIFICADO_DEFAULTS = {
+      instituicaoExecutora: 'Instituto de Arte e Cidadania do Ceará',
+      sigExecutor: 'Lia de Freitas',
+      sigPresidente: 'Francisca Camila Barros da Costa',
+      sigPrimeiraDama: 'Augusta Brito de Paula',
+      sigSecretaria: ''
+    };
+
+    function getDefaultCertificadoConfig(course) {
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        curso: course.tipologia || '',
+        cargaHoraria: course.cargaHoraria || '',
+        municipio: course.municipio || '',
+        dataInicio: course.dataInicio || '',
+        dataFim: course.dataFim || '',
+        instituicaoExecutora: CERTIFICADO_DEFAULTS.instituicaoExecutora,
+        dataEmissao: today,
+        instrutor: course.instrutor || '',
+        conteudoProgramatico: course.conteudoProgramatico || '',
+        sigExecutor: CERTIFICADO_DEFAULTS.sigExecutor,
+        sigPresidente: CERTIFICADO_DEFAULTS.sigPresidente,
+        sigPrimeiraDama: CERTIFICADO_DEFAULTS.sigPrimeiraDama,
+        sigSecretaria: CERTIFICADO_DEFAULTS.sigSecretaria
+      };
+    }
+
+    function getCertificadoConfig(course) {
+      return { ...getDefaultCertificadoConfig(course), ...(course.certificadoConfig || {}) };
+    }
+
+    function fillCertificadoForm(config, alunosCount) {
+      document.getElementById('cert-curso').value = config.curso || '';
+      document.getElementById('cert-carga').value = config.cargaHoraria || '';
+      document.getElementById('cert-municipio').value = config.municipio || '';
+      document.getElementById('cert-data-inicio').value = config.dataInicio || '';
+      document.getElementById('cert-data-fim').value = config.dataFim || '';
+      document.getElementById('cert-instituicao').value = config.instituicaoExecutora || '';
+      document.getElementById('cert-data-emissao').value = config.dataEmissao || '';
+      document.getElementById('cert-instrutor').value = config.instrutor || '';
+      document.getElementById('cert-conteudo').value = config.conteudoProgramatico || '';
+      document.getElementById('cert-sig-executor').value = config.sigExecutor || '';
+      document.getElementById('cert-sig-presidente').value = config.sigPresidente || '';
+      document.getElementById('cert-sig-primeira-dama').value = config.sigPrimeiraDama || '';
+      document.getElementById('cert-sig-secretaria').value = config.sigSecretaria || '';
+      const info = document.getElementById('cert-alunos-info');
+      if (info) info.textContent = `Serão gerados ${alunosCount} certificado(s) (frente + verso) — um por aluno cadastrado.`;
+    }
+
+    function readCertificadoForm() {
+      return {
+        curso: document.getElementById('cert-curso').value.trim(),
+        cargaHoraria: document.getElementById('cert-carga').value.trim(),
+        municipio: document.getElementById('cert-municipio').value.trim(),
+        dataInicio: document.getElementById('cert-data-inicio').value,
+        dataFim: document.getElementById('cert-data-fim').value,
+        instituicaoExecutora: document.getElementById('cert-instituicao').value.trim(),
+        dataEmissao: document.getElementById('cert-data-emissao').value,
+        instrutor: document.getElementById('cert-instrutor').value.trim(),
+        conteudoProgramatico: document.getElementById('cert-conteudo').value.trim(),
+        sigExecutor: document.getElementById('cert-sig-executor').value.trim(),
+        sigPresidente: document.getElementById('cert-sig-presidente').value.trim(),
+        sigPrimeiraDama: document.getElementById('cert-sig-primeira-dama').value.trim(),
+        sigSecretaria: document.getElementById('cert-sig-secretaria').value.trim()
+      };
+    }
+
+    function saveCertificadoConfigToCourse(course, config) {
+      course.certificadoConfig = config;
+      course.conteudoProgramatico = config.conteudoProgramatico;
+      const idx = courses.findIndex(c => c.id === course.id);
+      if (idx !== -1) {
+        courses[idx].certificadoConfig = config;
+        courses[idx].conteudoProgramatico = config.conteudoProgramatico;
+        const fIdx = filteredCourses.findIndex(c => c.id === course.id);
+        if (fIdx !== -1) {
+          filteredCourses[fIdx].certificadoConfig = config;
+          filteredCourses[fIdx].conteudoProgramatico = config.conteudoProgramatico;
+        }
+      }
+      saveToStorage();
+    }
+
+    function openCertificadoEditModal() {
+      const course = getCourseForDocuments();
+      if (!course) return;
+      const alunos = ensureCourseAlunos(course);
+      if (alunos.length === 0) {
+        showToast('Cadastre alunos antes de gerar certificados.', 'error');
+        return;
+      }
+      fillCertificadoForm(getCertificadoConfig(course), alunos.length);
+      document.getElementById('certificado-edit-modal').classList.remove('hidden');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeCertificadoEditModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList?.contains('modal-overlay')) return;
+      document.getElementById('certificado-edit-modal').classList.add('hidden');
+      const cronogramaOpen = !document.getElementById('cronograma-course-modal')?.classList.contains('hidden');
+      if (!cronogramaOpen) {
+        document.body.classList.remove('modal-open');
+      }
+    }
+
+    async function confirmGenerateCertificadoPDF() {
+      const course = getCourseForDocuments();
+      if (!course) return;
+      const config = readCertificadoForm();
+      if (!config.curso) {
+        showToast('Informe o nome do curso.', 'error');
+        return;
+      }
+      saveCertificadoConfigToCourse(course, config);
+      closeCertificadoEditModal();
+      await generateCertificadoPDF(config);
+    }
+
+    let certificadoBgCache = null;
+    let certificadoFieldLayout = null;
+    const CERTIFICADO_LAYOUT_VERSION = 4;
+
+    /* Posições extraídas do DOCX oficial (16850×11910 twips) — run/tab parsing */
+    const CERT_FIELD_FALLBACK = {
+      frente: {
+        aluno: { left: 23.18, top: 24.55, width: 28.77, height: 1.6, fontSize: '10pt', fontWeight: 700, align: 'center' },
+        curso: { left: 66.2, top: 24.55, width: 21.82, height: 1.6, fontSize: '10pt', fontWeight: 700 },
+        cargaHoraria: { left: 13.5, top: 29.58, width: 2.8, height: 1.6, fontSize: '10pt', align: 'center' },
+        periodo: { left: 47.8, top: 29.58, width: 25.0, height: 1.6, fontSize: '10pt' },
+        instituicao: { left: 11.23, top: 37.77, width: 34, height: 1.6, fontSize: '10pt' },
+        localData: { left: 38.14, top: 52.01, width: 23.5, height: 1.6, fontSize: '10pt' },
+        sigSecretaria: { left: 22, top: 71.2, width: 28, height: 1.4, fontSize: '9pt', fontWeight: 700, align: 'center' }
+      },
+      verso: {
+        instituicao: { left: 11.14, top: 9.3, width: 55, height: 1.6, fontSize: '10pt', fontWeight: 700 },
+        curso: { left: 17.6, top: 12.8, width: 32, height: 1.6, fontSize: '10pt' },
+        instrutor: { left: 17.6, top: 15.3, width: 32, height: 1.6, fontSize: '10pt' },
+        periodo: { left: 11.14, top: 17.8, width: 55, height: 1.6, fontSize: '10pt' },
+        cargaHoraria: { left: 22.5, top: 20.3, width: 8, height: 1.6, fontSize: '10pt' },
+        conteudo: { left: 11, top: 24.5, width: 78, height: 58, fontSize: '9.5pt', wrap: true, lineHeight: 1.45 }
+      }
+    };
+
+    function topFromBaseline(y, pageH, fontPt) {
+      const baselineTop = ((pageH - y) / pageH) * 100;
+      const ascentPct = ((fontPt * 0.82) / pageH) * 100;
+      return baselineTop - ascentPct;
+    }
+
+    function parseFontPt(fontSize) {
+      const m = String(fontSize || '10pt').match(/([\d.]+)/);
+      return m ? parseFloat(m[1]) : 10;
+    }
+
+    function groupTextLines(items, tolerance) {
+      const tol = tolerance || 3.5;
+      const lines = [];
+      for (const it of items) {
+        let line = lines.find(l => Math.abs(l.y - it.y) < tol);
+        if (!line) {
+          line = { y: it.y, items: [], pageW: it.pageW, pageH: it.pageH };
+          lines.push(line);
+        }
+        line.items.push(it);
+      }
+      lines.forEach(l => l.items.sort((a, b) => a.x - b.x));
+      lines.sort((a, b) => b.y - a.y);
+      return lines;
+    }
+
+    function lineFullText(line) {
+      return line.items.map(i => i.text).join(' ');
+    }
+
+    function findLine(lines, pattern) {
+      const re = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+      return lines.find(l => re.test(lineFullText(l))) || null;
+    }
+
+    function findItemInLine(line, pattern) {
+      if (!line) return null;
+      const re = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+      return line.items.find(it => re.test(it.text)) || null;
+    }
+
+    function spanBetweenItems(a, b, pageW, fontPt, extra) {
+      if (!a || !b) return null;
+      const left = pctX(a.x + a.w, pageW);
+      const right = pctX(b.x, pageW);
+      const font = fontPt || 10;
+      return {
+        left: left + (extra?.dx || 0),
+        top: topFromBaseline(a.y, a.pageH, font) + (extra?.dy || 0),
+        width: Math.max(right - left - 0.3, 2),
+        height: extra?.height || 1.6,
+        fontSize: `${font}pt`,
+        fontWeight: extra?.fontWeight,
+        align: extra?.align
+      };
+    }
+
+    function fieldFromItem(item, opts) {
+      if (!item) return null;
+      const o = opts || {};
+      const fontPt = o.fontPt || 10;
+      return {
+        left: pctX(item.x, item.pageW) + (o.dx || 0),
+        top: topFromBaseline(item.y, item.pageH, fontPt) + (o.dy || 0),
+        width: o.width != null ? o.width : Math.max((item.w / item.pageW) * 100 + 2, 4),
+        height: o.height || 1.6,
+        fontSize: `${fontPt}pt`,
+        fontWeight: o.fontWeight,
+        align: o.align,
+        wrap: o.wrap,
+        lineHeight: o.lineHeight
+      };
+    }
+
+    function initPdfJsWorker() {
+      if (typeof pdfjsLib !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+    }
+
+    async function loadCertificadoPdfBytes() {
+      if (window.CERTIFICADO_TEMPLATE_BASE64) {
+        const binary = atob(window.CERTIFICADO_TEMPLATE_BASE64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+      const resp = await fetch('assets/CERTIFICADO.pdf');
+      if (!resp.ok) throw new Error('Modelo CERTIFICADO.pdf não encontrado.');
+      return new Uint8Array(await resp.arrayBuffer());
+    }
+
+    async function renderCertificadoPageImage(pdfDoc, pageNum, scale) {
+      const page = await pdfDoc.getPage(pageNum);
+      const s = scale || 2;
+      const viewport = page.getViewport({ scale: s });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      const native = page.getViewport({ scale: 1 });
+      return { dataUrl: canvas.toDataURL('image/png'), width: native.width, height: native.height };
+    }
+
+    function pctX(x, pageW) { return (x / pageW) * 100; }
+    function pctY(y, pageH) { return ((pageH - y) / pageH) * 100; }
+
+    async function extractPageTextItems(page) {
+      const viewport = page.getViewport({ scale: 1 });
+      const tc = await page.getTextContent();
+      return tc.items.map(it => ({
+        text: (it.str || '').trim(),
+        x: it.transform[4],
+        y: it.transform[5],
+        w: it.width || 0,
+        h: Math.abs(it.transform[3]) || 11,
+        pageW: viewport.width,
+        pageH: viewport.height
+      })).filter(it => it.text);
+    }
+
+    function findTextItem(items, pattern) {
+      const re = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+      return items.find(it => re.test(it.text)) || null;
+    }
+
+    async function buildCertificadoFieldLayout(pdfBytes) {
+      const layout = JSON.parse(JSON.stringify(CERT_FIELD_FALLBACK));
+      try {
+        initPdfJsWorker();
+        const pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
+        const fItems = await extractPageTextItems(await pdf.getPage(1));
+        const vItems = await extractPageTextItems(await pdf.getPage(2));
+        const fLines = groupTextLines(fItems);
+        const vLines = groupTextLines(vItems);
+
+        const linhaCert = findLine(fLines, /Certificamos.*concluiu/);
+        const linhaHoras = findLine(fLines, /horas\/aula|horas.aula/);
+        const linhaLocal = findLine(fLines, /Municipio|Município/);
+
+        const que = findItemInLine(linhaCert, /^que$/i);
+        const concluiu = findItemInLine(linhaCert, /concluiu/);
+        const cursoDe = findItemInLine(linhaCert, /^de$/i);
+        const virgula = findItemInLine(linhaCert, /^,$/);
+
+        const alunoSpan = spanBetweenItems(que, concluiu, que?.pageW, 10, { fontWeight: 700, align: 'center', height: 1.6 });
+        if (alunoSpan && alunoSpan.width > 5) layout.frente.aluno = { ...alunoSpan, fontSize: '10pt' };
+
+        if (cursoDe && virgula) {
+          const cursoSpan = {
+            left: pctX(cursoDe.x + cursoDe.w + 2, cursoDe.pageW),
+            top: topFromBaseline(cursoDe.y, cursoDe.pageH, 10),
+            width: pctX(virgula.x, virgula.pageW) - pctX(cursoDe.x + cursoDe.w, cursoDe.pageW) - 0.5,
+            height: 1.6,
+            fontSize: '10pt',
+            fontWeight: 700
+          };
+          if (cursoSpan.width > 3) layout.frente.curso = cursoSpan;
+        }
+
+        const carga00 = findItemInLine(linhaHoras, /^00$/);
+        if (carga00) {
+          layout.frente.cargaHoraria = fieldFromItem(carga00, { dx: -0.4, width: 3, height: 1.6, align: 'center', fontPt: 10 }) || layout.frente.cargaHoraria;
+        }
+
+        if (linhaHoras) {
+          const zeros = linhaHoras.items.filter(it => it.text === '00');
+          const periodoStart = zeros.length >= 2 ? zeros[1] : zeros[0];
+          if (periodoStart) {
+            const periodoItems = linhaHoras.items.filter(it =>
+              it.x >= periodoStart.x - 1 &&
+              /^(00|de|mes|ano|a)$/i.test(it.text)
+            );
+            if (periodoItems.length >= 3) {
+              const first = periodoItems[0];
+              const last = periodoItems[periodoItems.length - 1];
+              layout.frente.periodo = {
+                left: pctX(first.x, first.pageW) - 0.3,
+                top: topFromBaseline(first.y, first.pageH, 10),
+                width: pctX(last.x + last.w, last.pageW) - pctX(first.x, first.pageW) + 1,
+                height: 1.6,
+                fontSize: '10pt'
+              };
+            }
+          }
+        }
+
+        const municipio = findItemInLine(linhaLocal, /Municipio|Município/);
+        const anoFim = findItemInLine(linhaLocal, /ano\.?$/i);
+        if (municipio) {
+          layout.frente.localData = {
+            left: pctX(municipio.x, municipio.pageW) - 0.5,
+            top: topFromBaseline(municipio.y, municipio.pageH, 10),
+            width: anoFim ? pctX(anoFim.x + anoFim.w, anoFim.pageW) - pctX(municipio.x, municipio.pageW) + 1.5 : 24,
+            height: 1.6,
+            fontSize: '10pt'
+          };
+        }
+
+        const linhaCurso = findLine(vLines, /Curso/i);
+        const linhaInstr = findLine(vLines, /Instrutor/i);
+        const linhaData = findLine(vLines, /DATA INICIO/i);
+        const linhaCarga = findLine(vLines, /Carga/i);
+        const linhaConteudo = findLine(vLines, /Conte[uú]do Program/i);
+
+        const cursoVal = linhaCurso && linhaCurso.items.length > 1 ? linhaCurso.items[linhaCurso.items.length - 1] : null;
+        if (cursoVal && !/^Curso/i.test(cursoVal.text)) {
+          layout.verso.curso = fieldFromItem(cursoVal, { fontPt: 10, height: 1.6, width: 35 }) || layout.verso.curso;
+        } else if (linhaCurso) {
+          const anchor = linhaCurso.items[0];
+          layout.verso.curso = {
+            left: pctX(anchor.x + anchor.w + 8, anchor.pageW),
+            top: topFromBaseline(anchor.y, anchor.pageH, 10),
+            width: 35,
+            height: 1.6,
+            fontSize: '10pt'
+          };
+        }
+
+        const instrVal = linhaInstr && linhaInstr.items.length > 1 ? linhaInstr.items[linhaInstr.items.length - 1] : null;
+        if (linhaInstr) {
+          const anchor = instrVal && !/^Instrutor/i.test(instrVal.text) ? instrVal : linhaInstr.items[0];
+          layout.verso.instrutor = {
+            left: pctX(anchor.x + (instrVal ? 0 : anchor.w + 8), anchor.pageW),
+            top: topFromBaseline(anchor.y, anchor.pageH, 10),
+            width: 35,
+            height: 1.6,
+            fontSize: '10pt'
+          };
+        }
+
+        if (linhaData) {
+          const dataItem = linhaData.items.find(it => /DATA INICIO/i.test(it.text)) || linhaData.items[0];
+          layout.verso.periodo = fieldFromItem(dataItem, { width: 55, height: 1.6, fontPt: 10 }) || layout.verso.periodo;
+        }
+
+        const cargaVal = findItemInLine(linhaCarga, /^00$|^\d+$/);
+        if (cargaVal) {
+          layout.verso.cargaHoraria = fieldFromItem(cargaVal, { width: 8, height: 1.6, fontPt: 10 }) || layout.verso.cargaHoraria;
+        } else if (linhaCarga) {
+          const lbl = linhaCarga.items[0];
+          layout.verso.cargaHoraria = {
+            left: pctX(lbl.x + lbl.w + 6, lbl.pageW),
+            top: topFromBaseline(lbl.y, lbl.pageH, 10),
+            width: 8,
+            height: 1.6,
+            fontSize: '10pt'
+          };
+        }
+
+        if (linhaConteudo) {
+          const anchor = linhaConteudo.items[0];
+          layout.verso.conteudo = {
+            left: pctX(anchor.x, anchor.pageW) - 0.5,
+            top: topFromBaseline(anchor.y, anchor.pageH, 9.5) + 4.2,
+            width: 78,
+            height: 58,
+            fontSize: '9.5pt',
+            wrap: true,
+            lineHeight: 1.45
+          };
+        }
+      } catch (e) {
+        console.warn('Calibração automática do certificado:', e);
+      }
+      return layout;
+    }
+
+    async function loadCertificadoBackgrounds() {
+      const cacheKey = 'v' + CERTIFICADO_LAYOUT_VERSION;
+      if (certificadoBgCache && certificadoFieldLayout && certificadoBgCache._key === cacheKey) {
+        return { ...certificadoBgCache, layout: certificadoFieldLayout };
+      }
+      initPdfJsWorker();
+      const bytes = await loadCertificadoPdfBytes();
+      const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+      const [frente, verso, layout] = await Promise.all([
+        renderCertificadoPageImage(pdf, 1, 2),
+        renderCertificadoPageImage(pdf, 2, 2),
+        buildCertificadoFieldLayout(bytes)
+      ]);
+      certificadoBgCache = { frente, verso, _key: cacheKey };
+      certificadoFieldLayout = layout;
+      return { frente, verso, layout };
+    }
+
+    function certFieldStyle(pos) {
+      let s = `left:${pos.left}%;top:${pos.top}%;`;
+      if (pos.width) s += `width:${pos.width}%;`;
+      if (pos.height) s += `height:${pos.height}%;`;
+      if (pos.fontSize) s += `font-size:${pos.fontSize};`;
+      if (pos.fontWeight) s += `font-weight:${pos.fontWeight};`;
+      if (pos.align === 'center') s += `text-align:center;`;
+      if (pos.lineHeight) s += `line-height:${pos.lineHeight};`;
+      return s;
+    }
+
+    function renderCertField(text, pos, extraClass) {
+      if (text == null || text === '') return '';
+      const cls = ['cert-f', pos.wrap ? 'cert-f--wrap' : '', extraClass || ''].filter(Boolean).join(' ');
+      return `<span class="${cls}" style="${certFieldStyle(pos)}">${text}</span>`;
+    }
+
+    function renderCertificadoFrenteHtml(aluno, config, bg, layout) {
+      const L = layout.frente;
+      const periodo = formatPeriodLong(config.dataInicio, config.dataFim);
+      const localData = `${config.municipio || ''} - CE, ${formatDateLong(config.dataEmissao)}.`;
+      const instDefault = CERTIFICADO_DEFAULTS.instituicaoExecutora;
+      const showInst = config.instituicaoExecutora && config.instituicaoExecutora.trim() !== instDefault;
+      const sigS = (config.sigSecretaria || '').trim();
+
+      const fields = [
+        renderCertField(escapeHtml(aluno.nome.toUpperCase()), L.aluno, 'cert-f--bold cert-f--center'),
+        renderCertField(escapeHtml(config.curso || ''), L.curso, 'cert-f--bold'),
+        renderCertField(escapeHtml(String(config.cargaHoraria ?? '')), L.cargaHoraria),
+        renderCertField(escapeHtml(periodo), L.periodo),
+        showInst ? renderCertField(escapeHtml(config.instituicaoExecutora), L.instituicao) : '',
+        renderCertField(escapeHtml(localData), L.localData),
+        sigS ? renderCertField(escapeHtml(sigS), L.sigSecretaria, 'cert-f--bold cert-f--center') : ''
+      ].join('');
+
+      return `<section class="cert-page"><img class="cert-bg" src="${bg.dataUrl}" alt="" loading="eager"><div class="cert-overlay">${fields}</div></section>`;
+    }
+
+    function renderCertificadoVersoHtml(config, bg, layout) {
+      const L = layout.verso;
+      const periodo = formatPeriodLong(config.dataInicio, config.dataFim);
+      const conteudo = escapeHtml(config.conteudoProgramatico || '').replace(/\n/g, '<br>');
+      const instDefault = CERTIFICADO_DEFAULTS.instituicaoExecutora.toUpperCase();
+      const showInst = config.instituicaoExecutora && config.instituicaoExecutora.trim().toUpperCase() !== instDefault;
+
+      const fields = [
+        showInst ? renderCertField(escapeHtml(config.instituicaoExecutora.toUpperCase()), L.instituicao, 'cert-f--bold') : '',
+        renderCertField(escapeHtml(config.curso || ''), L.curso),
+        renderCertField(escapeHtml(config.instrutor || ''), L.instrutor),
+        renderCertField(escapeHtml(periodo), L.periodo),
+        renderCertField(escapeHtml(String(config.cargaHoraria ?? '')), L.cargaHoraria),
+        renderCertField(conteudo, L.conteudo, 'cert-f--wrap')
+      ].join('');
+
+      return `<section class="cert-page"><img class="cert-bg" src="${bg.dataUrl}" alt="" loading="eager"><div class="cert-overlay">${fields}</div></section>`;
+    }
+
+    function renderCertificadoAlunoHtml(aluno, config, frenteBg, versoBg, layout) {
+      return renderCertificadoFrenteHtml(aluno, config, frenteBg, layout) + renderCertificadoVersoHtml(config, versoBg, layout);
+    }
+
+    async function openCertificadoPrintPreview(alunos, config, course) {
+      const root = document.getElementById('certificado-print-root');
+      if (!root) return;
+      root.innerHTML = '<p class="p-8 text-center text-muted-foreground">Carregando modelo oficial…</p>';
+      document.getElementById('certificado-print-modal')?.classList.remove('hidden');
+      document.body.classList.add('modal-open');
+
+      try {
+        const { frente, verso, layout } = await loadCertificadoBackgrounds();
+        root.innerHTML = `<div class="cert-preview-scale">${alunos.map(a => renderCertificadoAlunoHtml(a, config, frente, verso, layout)).join('')}</div>`;
+        const countEl = document.getElementById('certificado-print-count');
+        if (countEl) {
+          countEl.textContent = `${alunos.length} certificado(s) — ${course.tipologia || course.idCurso || 'Turma'}`;
+        }
+      } catch (err) {
+        root.innerHTML = `<p class="p-8 text-center text-red-600">${escapeHtml(err.message || 'Erro ao carregar modelo.')}</p>`;
+        showToast(err.message || 'Erro ao carregar modelo do certificado.', 'error');
+      }
+    }
+
+    function closeCertificadoPrintModal() {
+      document.getElementById('certificado-print-modal')?.classList.add('hidden');
+      document.body.classList.remove('modal-open', 'cert-printing');
+    }
+
+    function printCertificadosHtml() {
+      document.body.classList.add('cert-printing');
+      const afterPrint = () => {
+        document.body.classList.remove('cert-printing');
+        window.removeEventListener('afterprint', afterPrint);
+      };
+      window.addEventListener('afterprint', afterPrint);
+      setTimeout(() => window.print(), 150);
+    }
+
+    async function generateCertificadoPDF(config) {
+      const course = getCourseForDocuments();
+      if (!course) return;
+      const alunos = ensureCourseAlunos(course);
+      if (alunos.length === 0) {
+        showToast('Cadastre alunos antes de gerar certificados.', 'error');
+        return;
+      }
+      const cfg = config || getCertificadoConfig(course);
+      const btn = document.getElementById('certificado-gerar-pdf-btn');
+      if (btn) btn.disabled = true;
+      try {
+        await openCertificadoPrintPreview(alunos, cfg, course);
+        showToast('Certificados prontos — clique em Imprimir / Gerar PDF', 'success');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function generateFormularioCertificacaoPDF() {
+      const course = getCourseForDocuments();
+      if (!course) return;
+      const alunos = ensureCourseAlunos(course);
+      if (alunos.length === 0) {
+        showToast('Cadastre alunos antes de gerar o formulário.', 'error');
+        return;
+      }
+      const jsPDF = getJsPDFInstance();
+      if (!jsPDF) return;
+
+      const doc = new jsPDF('portrait');
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = addPdfCourseHeader(doc, course, 'Formulário de Certificação dos Alunos', 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Modelo provisório — será substituído pelo template oficial do IAC', margin, y);
+      y += 10;
+
+      const colWidths = [10, 70, 40, 55];
+      const headers = ['Nº', 'Nome Completo', 'CPF', 'Assinatura'];
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(0, 0, 0);
+      let x = margin;
+      headers.forEach((h, i) => { doc.text(h, x + 1, y); x += colWidths[i]; });
+      y += 4;
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 6;
+
+      doc.setFont(undefined, 'normal');
+      alunos.forEach((aluno, i) => {
+        y = checkPdfPageBreak(doc, y, 10, margin);
+        x = margin;
+        doc.text(String(i + 1), x + 1, y); x += colWidths[0];
+        doc.text(doc.splitTextToSize(aluno.nome, colWidths[1] - 2)[0], x + 1, y); x += colWidths[1];
+        doc.text(aluno.cpf || '_______________', x + 1, y); x += colWidths[2];
+        doc.line(x + 2, y + 1, x + colWidths[3] - 4, y + 1);
+        y += 8;
+      });
+
+      y = checkPdfPageBreak(doc, y, 30, margin);
+      y += 10;
+      doc.setFont(undefined, 'bold');
+      doc.text('Total de concludentes: ' + alunos.length, margin, y);
+      y += 15;
+      doc.text('Responsável pela certificação: _______________________________________', margin, y);
+      y += 10;
+      doc.text('Data: ____/____/________', margin, y);
+
+      downloadCoursePDF(doc, course, 'Formulario_Certificacao');
+    }
+
     // Abrir modal de curso no cronograma
     function openCronogramaCourseModal(courseId) {
       const course = courses.find(c => c.id === courseId);
@@ -7416,6 +9036,7 @@
       document.getElementById('cronograma-course-modal').classList.add('hidden');
       document.body.classList.remove('modal-open');
       currentEditCourse = null;
+      editingCronogramaAlunoId = null;
     }
 
     function deleteCourseFromCronogramaModal() {
