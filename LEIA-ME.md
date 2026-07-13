@@ -37,9 +37,8 @@ Adicione: `seu-usuario.github.io`
 3. O formulário deve abrir
 4. Console (F12): `[IAC] instructors-boot.js carregado`
 
-## Correções v29
+## Correções v30
 
-- manifest.json corrigido para GitHub Pages
-- Scripts em ordem: instructors-boot → app → views
-- instructors-boot.js garante o modal mesmo se views.js falhar
-- Caminhos automáticos para `/nome-do-repo/`
+- Corrigido carregamento infinito na logo inicial
+- Scripts carregam com caminho correto para GitHub Pages
+- Fallback automático se algum script falhar

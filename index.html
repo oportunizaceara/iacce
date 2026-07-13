@@ -11,7 +11,7 @@
         path = last.indexOf('.') >= 0 ? path.slice(0, path.lastIndexOf('/') + 1) : path + '/';
       }
       window.__APP_BASE__ = path || '/';
-      window.__IAC_VER__ = '29';
+      window.__IAC_VER__ = '30';
       window.iacAsset = function (file) {
         return window.__APP_BASE__ + file + '?v=' + window.__IAC_VER__;
       };
@@ -158,6 +158,26 @@
       </div>
     </div>
   </div>
+
+  <script>
+    /* Fallback: nunca ficar preso na tela de loading */
+    (function () {
+      function showAppFallback() {
+        var loading = document.getElementById('initial-loading');
+        var app = document.getElementById('app');
+        if (loading) loading.classList.add('hidden');
+        if (app) app.classList.remove('hidden');
+      }
+      window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(showAppFallback, 5000);
+      });
+      window.addEventListener('error', function (e) {
+        if (e.filename && /app\.js|views\.js/i.test(e.filename)) {
+          setTimeout(showAppFallback, 300);
+        }
+      }, true);
+    })();
+  </script>
 
   <!-- Tela de Carregamento ao Logar -->
   <div id="login-loading" class="fixed inset-0 z-[9998] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-md hidden flex items-center justify-center">
@@ -1869,11 +1889,22 @@
 
   <script>
     (function () {
-      var base = window.__APP_BASE__ || '/';
-      var v = window.__IAC_VER__ || '29';
-      document.write('<script src="' + base + 'assets/instructors-boot.js?v=' + v + '"><\/script>');
-      document.write('<script src="' + base + 'assets/app.js?v=' + v + '"><\/script>');
-      document.write('<script src="' + base + 'assets/views.js?v=' + v + '"><\/script>');
+      var base = window.__APP_BASE__ || './';
+      var v = window.__IAC_VER__ || '30';
+      var queue = ['instructors-boot.js', 'app.js', 'views.js'];
+      function next(i) {
+        if (i >= queue.length) return;
+        var s = document.createElement('script');
+        s.src = base + 'assets/' + queue[i] + '?v=' + v;
+        s.async = false;
+        s.onload = function () { next(i + 1); };
+        s.onerror = function () {
+          console.error('[IAC] Falha ao carregar:', s.src);
+          next(i + 1);
+        };
+        document.body.appendChild(s);
+      }
+      next(0);
     })();
   </script>
 </body>
