@@ -1,41 +1,87 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: [
-    './index.html',
-    './assets/app.js'
-  ],
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        background: '#f5f5f7',
-        foreground: '#1d1d1f',
-        card: 'rgba(255, 255, 255, 0.8)',
-        'card-foreground': '#1d1d1f',
-        primary: '#007AFF',
-        'primary-foreground': '#ffffff',
-        secondary: 'rgba(142, 142, 147, 0.12)',
-        'secondary-foreground': '#1d1d1f',
-        muted: 'rgba(142, 142, 147, 0.12)',
-        'muted-foreground': '#8e8e93',
-        border: 'rgba(0, 0, 0, 0.1)',
-        input: 'rgba(255, 255, 255, 0.9)',
-        ring: '#007AFF'
-      },
-      fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif']
-      },
-      borderRadius: {
-        ios: '20px',
-        'ios-sm': '12px',
-        'ios-lg': '28px'
-      },
-      boxShadow: {
-        ios: '0 2px 10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1)',
-        'ios-lg': '0 10px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1)',
-        'ios-card': '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)'
-      }
-    }
-  },
-  plugins: []
-};
+const CACHE_NAME = 'iac-v8';
+const urlsToCache = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './assets/app.css',
+  './assets/tailwind.css'
+];
+
+const isDynamicAsset = (url) => /\.(js|html)(\?.*)?$/i.test(url.pathname);
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        urlsToCache.map((url) =>
+          cache.add(url).catch(() => null)
+        )
+      )
+    )
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  if (isDynamicAsset(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((response) => response || fetch(event.request))
+  );
+});
+
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'IAC - Notificação';
+  const options = {
+    body: data.body || 'Nova notificação',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    vibrate: [200, 100, 200],
+    data: data
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options).catch(() => {
+      const opts = { ...options };
+      delete opts.icon;
+      delete opts.badge;
+      return self.registration.showNotification(title, opts);
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow('./'));
+});

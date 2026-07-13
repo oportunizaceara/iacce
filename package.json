@@ -1,10 +1,44 @@
 {
-  "name": "plataforma-csf",
-  "private": true,
-  "scripts": {
-    "build:css": "tailwindcss -i ./assets/tailwind-input.css -o ./assets/tailwind.css --minify"
-  },
-  "devDependencies": {
-    "tailwindcss": "^3.4.17"
-  }
+  "name": "IAC - Instituto de Arte e Cidadania do Ceará",
+  "short_name": "IAC",
+  "description": "Gestão de Cursos Profissionalizantes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007AFF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Cronograma",
+      "short_name": "Cronograma",
+      "description": "Ver cronograma de cursos",
+      "url": "/#cronograma",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Calendário",
+      "short_name": "Calendário",
+      "description": "Ver calendário",
+      "url": "/#calendar",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }
+
+

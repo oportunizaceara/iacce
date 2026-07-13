@@ -1,44 +1,5 @@
 {
-  "rules": {
-    "courses": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      "$courseId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
-      }
-    },
-    "responsibles": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "lotResponsibles": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "courseChecklists": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "calendarEvents": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "calendarTasks": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "lastSync": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "actionLogs": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "users": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
+  "database": {
+    "rules": "database.rules.json"
   }
 }
