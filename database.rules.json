@@ -4,6 +4,10 @@
       ".read": "auth != null",
       ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
     },
+    "responsibles": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+    },
     "lotResponsibles": {
       ".read": "auth != null",
       ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
@@ -30,4 +34,3 @@
     }
   }
 }
-

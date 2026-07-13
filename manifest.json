@@ -29,14 +29,14 @@
       "short_name": "Cronograma",
       "description": "Ver cronograma de cursos",
       "url": "/#cronograma",
-      "icons": [{ "src": "icon-192.png.png", "sizes": "192x192" }]
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Calendário",
       "short_name": "Calendário",
       "description": "Ver calendário",
       "url": "/#calendar",
-      "icons": [{ "src": "icon-192.png.png", "sizes": "192x192" }]
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
