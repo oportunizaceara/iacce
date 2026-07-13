@@ -2,7 +2,7 @@
   "name": "IAC - Instituto de Arte e Cidadania do Ceará",
   "short_name": "IAC",
   "description": "Gestão de Cursos Profissionalizantes",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007AFF",

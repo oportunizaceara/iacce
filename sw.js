@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iac-v24';
+const CACHE_NAME = 'iac-v25';
 const urlsToCache = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const urlsToCache = [
   './icon-192.png',
   './icon-512.png',
   './assets/app.css',
+  './assets/app.js',
+  './assets/views.js',
   './assets/tailwind.css'
 ];
 

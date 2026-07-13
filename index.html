@@ -3,6 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <script>
+    (function () {
+      var path = window.location.pathname.replace(/\/index\.html$/i, '');
+      if (!path.endsWith('/')) {
+        var last = path.split('/').pop() || '';
+        path = last.indexOf('.') >= 0 ? path.slice(0, path.lastIndexOf('/') + 1) : path + '/';
+      }
+      window.__APP_BASE__ = path || '/';
+      var base = document.createElement('base');
+      base.href = window.__APP_BASE__;
+      document.head.appendChild(base);
+    })();
+  </script>
   <meta name="description" content="IAC - Instituto de Arte e Cidadania do Ceará - Gestão de Cursos Profissionalizantes">
   <meta name="theme-color" content="#007AFF">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -113,7 +126,7 @@
     }
     }
   </script>
-  <link rel="stylesheet" href="./assets/app.css?v=24">
+  <link rel="stylesheet" href="./assets/app.css?v=25">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -878,7 +891,7 @@
           <h2 class="section-title">Instrutores</h2>
           <p class="section-subtitle">Contratos, turmas e pagamentos</p>
         </div>
-        <button onclick="openInstructorModal()" class="course-link-btn">+ Novo instrutor</button>
+        <button type="button" onclick="openInstructorModal()" class="course-link-btn admin-only">+ Novo instrutor</button>
       </div>
       <div id="instructors-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </main>
@@ -902,8 +915,8 @@
 
   <!-- Modal Instrutor -->
   <div id="instructor-modal" class="fixed inset-0 z-[1100] hidden">
-    <div class="modal-overlay absolute inset-0" onclick="closeInstructorModal()"></div>
-    <div class="modal-content instructor-modal-panel w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden md:rounded-2xl shadow-2xl">
+    <div class="modal-overlay absolute inset-0 z-0" onclick="closeInstructorModal()"></div>
+    <div class="modal-content instructor-modal-panel relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden md:rounded-2xl shadow-2xl mx-auto" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between p-4 md:p-6 border-b border-border/30 flex-shrink-0">
         <h2 id="instructor-modal-title" class="text-xl font-semibold text-foreground">Novo Instrutor</h2>
         <button type="button" onclick="closeInstructorModal()" class="p-2 hover:bg-secondary rounded-lg transition-colors" aria-label="Fechar">
@@ -1839,8 +1852,8 @@
     </div>
   </div>
 
-  <script src="./assets/app.js?v=24"></script>
-  <script src="./assets/views.js?v=24"></script>
+  <script src="./assets/app.js?v=25"></script>
+  <script src="./assets/views.js?v=25"></script>
 </body>
 </html>
 
