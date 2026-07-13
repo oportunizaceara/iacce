@@ -11,9 +11,10 @@
         path = last.indexOf('.') >= 0 ? path.slice(0, path.lastIndexOf('/') + 1) : path + '/';
       }
       window.__APP_BASE__ = path || '/';
-      var base = document.createElement('base');
-      base.href = window.__APP_BASE__;
-      document.head.appendChild(base);
+      window.__IAC_VER__ = '28';
+      window.iacAsset = function (file) {
+        return window.__APP_BASE__ + file + '?v=' + window.__IAC_VER__;
+      };
     })();
   </script>
   <meta name="description" content="IAC - Instituto de Arte e Cidadania do Ceará - Gestão de Cursos Profissionalizantes">
@@ -22,7 +23,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="IAC">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="./manifest.json" onerror="console.warn('Manifest não encontrado - isso é normal em desenvolvimento local')">
+  <link rel="manifest" id="iac-manifest" href="manifest.json">
+  <script>
+    (function () {
+      if (window.iacAsset) {
+        var m = document.getElementById('iac-manifest');
+        if (m) m.href = window.iacAsset('manifest.json');
+      }
+    })();
+  </script>
   
   <!-- Favicon e Ícones -->
   <!-- Apenas referências essenciais - ícones serão carregados se existirem -->
@@ -89,44 +98,50 @@
   </script>
   <script>
     if (typeof tailwind !== 'undefined') {
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            background: 'transparent',
-            foreground: '#1d1d1f',
-            card: 'rgba(255, 255, 255, 0.52)',
-            'card-foreground': '#1d1d1f',
-            primary: '#007AFF',
-            'primary-foreground': '#ffffff',
-            secondary: 'rgba(120, 120, 128, 0.16)',
-            'secondary-foreground': '#1d1d1f',
-            muted: 'rgba(120, 120, 128, 0.16)',
-            'muted-foreground': '#8e8e93',
-            border: 'rgba(255, 255, 255, 0.45)',
-            input: 'rgba(255, 255, 255, 0.55)',
-            ring: '#007AFF',
-          },
-          fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
-          },
-          borderRadius: {
-            'ios': '20px',
-            'ios-sm': '12px',
-            'ios-lg': '28px',
-          },
-          boxShadow: {
-            'ios': '0 2px 10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1)',
-            'ios-lg': '0 10px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1)',
-            'ios-card': '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)',
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              background: 'transparent',
+              foreground: '#1d1d1f',
+              card: 'rgba(255, 255, 255, 0.52)',
+              'card-foreground': '#1d1d1f',
+              primary: '#007AFF',
+              'primary-foreground': '#ffffff',
+              secondary: 'rgba(120, 120, 128, 0.16)',
+              'secondary-foreground': '#1d1d1f',
+              muted: 'rgba(120, 120, 128, 0.16)',
+              'muted-foreground': '#8e8e93',
+              border: 'rgba(255, 255, 255, 0.45)',
+              input: 'rgba(255, 255, 255, 0.55)',
+              ring: '#007AFF',
+            },
+            fontFamily: {
+              sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+            },
+            borderRadius: {
+              'ios': '20px',
+              'ios-sm': '12px',
+              'ios-lg': '28px',
+            },
+            boxShadow: {
+              'ios': '0 2px 10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1)',
+              'ios-lg': '0 10px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1)',
+              'ios-card': '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)',
+            }
           }
         }
-      }
-    }
+      };
     }
   </script>
-  <link rel="stylesheet" href="./assets/app.css?v=26">
+  <link rel="stylesheet" id="iac-app-css" href="assets/app.css">
+  <script>
+    (function () {
+      var link = document.getElementById('iac-app-css');
+      if (link && window.iacAsset) link.href = window.iacAsset('assets/app.css');
+    })();
+  </script>
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -891,7 +906,7 @@
           <h2 class="section-title">Instrutores</h2>
           <p class="section-subtitle">Contratos, turmas e pagamentos</p>
         </div>
-        <button type="button" id="btn-add-instructor" class="course-link-btn">+ Novo instrutor</button>
+        <button type="button" id="btn-add-instructor" onclick="openInstructorModal()" class="course-link-btn">+ Novo instrutor</button>
       </div>
       <div id="instructors-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </main>
@@ -1852,8 +1867,30 @@
     </div>
   </div>
 
-  <script src="./assets/app.js?v=26"></script>
-  <script src="./assets/views.js?v=26"></script>
+  <script>
+    (function () {
+      function loadScript(url, onDone) {
+        var s = document.createElement('script');
+        s.src = url;
+        s.onload = function () { if (onDone) onDone(); };
+        s.onerror = function () {
+          console.error('Falha ao carregar:', url);
+          if (onDone) onDone(new Error(url));
+        };
+        document.body.appendChild(s);
+      }
+      var appUrl = window.iacAsset('assets/app.js');
+      var viewsUrl = window.iacAsset('assets/views.js');
+      loadScript(appUrl, function (err) {
+        if (err) return;
+        loadScript(viewsUrl, function (viewsErr) {
+          if (viewsErr) {
+            console.error('views.js não encontrado. Confirme que assets/views.js foi enviado ao GitHub.');
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
 

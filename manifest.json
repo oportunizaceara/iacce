@@ -2,43 +2,53 @@
   "name": "IAC - Instituto de Arte e Cidadania do Ceará",
   "short_name": "IAC",
   "description": "Gestão de Cursos Profissionalizantes",
-  "start_url": "./",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007AFF",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
   "categories": ["education", "productivity"],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "Cronograma",
       "short_name": "Cronograma",
       "description": "Ver cronograma de cursos",
-      "url": "/#cronograma",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "url": "./index.html#cronograma",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Tarefas",
       "short_name": "Tarefas",
       "description": "Ver tarefas das turmas",
-      "url": "/#tarefas",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "url": "./index.html#tarefas",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
-
-
