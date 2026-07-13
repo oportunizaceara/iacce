@@ -2,26 +2,73 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     const STORAGE_KEY_RESPONSIBLES = 'dashboard_responsibles';
     const STORAGE_KEY_CHECKLISTS = 'course_checklists';
 
-    function isCourseEmBreve(course) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const status = normalizeStatus(course.status);
-      if (status === 'concluído' || status === 'concluido') return false;
-      if (status === 'em andamento' || status === 'em andamento.') return false;
-      if (status === 'pendente' || status === 'planejado') return true;
-      if (course.dataInicio) {
-        const startDate = new Date(course.dataInicio);
-        startDate.setHours(0, 0, 0, 0);
-        const daysDiff = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
-        return daysDiff >= 0 && daysDiff <= 60;
+    function isCourseEmAndamento(course) {
+      const status = normalizeStatus(course.status || '');
+      return status === 'em andamento' || status === 'em andamento.' || status.includes('andamento');
+    }
+
+    function isTurmaFechada(course) {
+      const value = course?.turmaFormada;
+      if (value === true || value === 1) return true;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === '1' || normalized === 'sim' || normalized === 's' || normalized === 'yes';
       }
       return false;
     }
 
-    function getCronogramaPriority(course) {
-      if (course.turmaFormada) return 0;
+    function normalizeCourseData(course) {
+      if (!course || typeof course !== 'object') return course;
+      const normalized = { ...course };
+      normalized.turmaFormada = isTurmaFechada(normalized);
+      return normalized;
+    }
+
+    function normalizeAllCourses(list) {
+      const coursesArray = Array.isArray(list)
+        ? list
+        : (list && typeof list === 'object' ? Object.values(list) : []);
+      return coursesArray
+        .filter(course => course && typeof course === 'object')
+        .map(course => normalizeCourseData({ ...course }));
+    }
+
+    function preserveTurmaFormadaFlag(course, hadTurmaFormada) {
+      if (hadTurmaFormada) {
+        course.turmaFormada = true;
+      }
+      return course;
+    }
+
+    function syncCourseToFiltered(courseId) {
+      const course = courses.find(c => c.id === courseId);
+      if (!course) return;
+      const filteredIndex = filteredCourses.findIndex(c => c.id === courseId);
+      if (filteredIndex !== -1) {
+        filteredCourses[filteredIndex] = { ...filteredCourses[filteredIndex], ...course };
+      }
+    }
+
+    function isCourseConcluido(course) {
       const status = normalizeStatus(course.status || '');
-      if (status === 'em andamento' || status === 'em andamento.') return 1;
+      return status === 'concluído' || status === 'concluido' || status === 'concluida' || status === 'concluída';
+    }
+
+    function isCourseEmBreve(course) {
+      if (isTurmaFechada(course)) return false;
+      if (isCourseConcluido(course)) return false;
+      if (isCourseEmAndamento(course)) return false;
+      const status = normalizeStatus(course.status || '');
+      return status.includes('breve');
+    }
+
+    function getCourseStartTime(course) {
+      return course.dataInicio ? new Date(course.dataInicio).getTime() : Number.MAX_SAFE_INTEGER;
+    }
+
+    function getCronogramaPriority(course) {
+      if (isTurmaFechada(course)) return 0;
+      if (isCourseEmAndamento(course)) return 1;
       if (isCourseEmBreve(course)) return 2;
       return 3;
     }
@@ -31,22 +78,30 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const pa = getCronogramaPriority(a);
         const pb = getCronogramaPriority(b);
         if (pa !== pb) return pa - pb;
-        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date(pa <= 2 ? '9999-12-31' : 0);
-        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date(pb <= 2 ? '9999-12-31' : 0);
-        if (pa <= 2 && pb <= 2) return dateA - dateB;
+        const dateA = getCourseStartTime(a);
+        const dateB = getCourseStartTime(b);
+        if (pa <= 2) return dateA - dateB;
         return dateB - dateA;
       });
     }
 
     function sortTarefasCourses(list) {
       return [...list].sort((a, b) => {
-        const aBreve = isCourseEmBreve(a) ? 0 : 1;
-        const bBreve = isCourseEmBreve(b) ? 0 : 1;
-        if (aBreve !== bBreve) return aBreve - bBreve;
-        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date('9999-12-31');
-        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date('9999-12-31');
-        return dateA - dateB;
+        const pa = isCourseEmAndamento(a) ? 0 : 1;
+        const pb = isCourseEmAndamento(b) ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return getCourseStartTime(a) - getCourseStartTime(b);
       });
+    }
+
+    function sortCoursesByStartDate(list) {
+      return [...list].sort((a, b) => getCourseStartTime(a) - getCourseStartTime(b));
+    }
+
+    function isCronogramaPriorityCourse(course) {
+      if (isTurmaFechada(course)) return true;
+      if (isCourseConcluido(course)) return false;
+      return isCourseEmAndamento(course) || isCourseEmBreve(course);
     }
 
     const STORAGE_KEY_CALENDAR_EVENTS = 'calendar_events';
@@ -241,7 +296,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         console.log('Salvando no Realtime Database...', { courses: courses.length, responsibles: Object.keys(lotResponsibles).length });
         
         // Save courses
-        await set(ref(db, 'courses'), courses);
+        const coursesToSave = normalizeAllCourses(courses);
+        await set(ref(db, 'courses'), coursesToSave);
         console.log('Cursos salvos no Realtime Database com sucesso');
         
         // Save responsibles
@@ -311,9 +367,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const coursesSnapshot = await Promise.race([coursesPromise, coursesTimeout]);
         
         if (coursesSnapshot.exists()) {
-          const dbCourses = coursesSnapshot.val() || [];
-          if (Array.isArray(dbCourses) && dbCourses.length > 0) {
-            courses = dbCourses;
+          const dbCourses = coursesSnapshot.val();
+          const normalized = normalizeAllCourses(dbCourses);
+          if (normalized.length > 0) {
+            courses = normalized;
             // Update localStorage as backup
             localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
           }
@@ -401,14 +458,15 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const coursesRef = ref(db, 'courses');
         const coursesCallback = (snapshot) => {
             if (snapshot.exists() && !isUpdatingFromListener) {
-            const newCourses = snapshot.val() || [];
-              const currentStr = JSON.stringify(courses.sort((a, b) => (a.id || '').localeCompare(b.id || '')));
-              const newStr = JSON.stringify(newCourses.sort((a, b) => (a.id || '').localeCompare(b.id || '')));
+            const rawCourses = snapshot.val() || [];
+            const newCourses = normalizeAllCourses(rawCourses);
+              const currentStr = JSON.stringify(courses.map(c => c.id).sort());
+              const newStr = JSON.stringify(newCourses.map(c => c.id).sort());
               
               if (currentStr !== newStr) {
                 console.log('🔄 Atualizando cursos via listener em tempo real', { oldCount: courses.length, newCount: newCourses.length });
                 isUpdatingFromListener = true;
-                courses = newCourses;
+                courses = normalizeAllCourses(newCourses);
                 filteredCourses = [...courses];
                 // Update localStorage as backup
                 localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
@@ -900,8 +958,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const localCourses = JSON.parse(localStorage.getItem(STORAGE_KEY_COURSES)) || [];
         const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
         courseChecklists = JSON.parse(localStorage.getItem(STORAGE_KEY_CHECKLISTS)) || {};
-        courses = localCourses;
-        lotResponsibles = localResponsibles;
+        courses = normalizeAllCourses(localCourses);
+        lotResponsibles = localResponsibles && typeof localResponsibles === 'object' ? localResponsibles : {};
         filteredCourses = [...courses];
         
         // Renderizar imediatamente com dados do localStorage
@@ -924,6 +982,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         switchTab('cronograma');
       } catch (error) {
         console.error('Erro ao carregar do localStorage:', error);
+        const initialLoading = document.getElementById('initial-loading');
+        if (initialLoading) initialLoading.classList.add('hidden');
+        const appEl = document.getElementById('app');
+        if (appEl) appEl.classList.remove('hidden');
+        showToast('Erro ao carregar dados. Tente recarregar a página.', 'error');
       }
       
       // AGORA sincronizar com Firebase em background (não bloqueia a UI)
@@ -1193,22 +1256,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function getCoursesEmBreve() {
-      return courses.filter(c => isCourseEmBreve(c)).sort((a, b) => {
-        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date('9999-12-31');
-        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date('9999-12-31');
-        return dateA - dateB;
-      });
+      return sortTarefasCourses(courses.filter(c => isCourseEmBreve(c) && !isCourseEmAndamento(c)));
     }
 
     function getCoursesEmAndamentoForTarefas() {
-      return courses.filter(c => {
-        const status = normalizeStatus(c.status);
-        return status === 'em andamento' || status === 'em andamento.';
-      }).sort((a, b) => {
-        const dateA = a.dataInicio ? new Date(a.dataInicio) : new Date(0);
-        const dateB = b.dataInicio ? new Date(b.dataInicio) : new Date(0);
-        return dateA - dateB;
-      });
+      return sortTarefasCourses(courses.filter(c => isCourseEmAndamento(c)));
     }
 
     function canEditChecklist() {
@@ -1507,6 +1559,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const emAndamentoList = document.getElementById('tarefas-em-andamento-list');
       const emBreveSection = document.getElementById('tarefas-em-breve-section');
       const emAndamentoSection = document.getElementById('tarefas-em-andamento-section');
+      const prioritySection = document.getElementById('tarefas-priority-section');
       const emptyEl = document.getElementById('tarefas-empty');
       const noResultsEl = document.getElementById('tarefas-no-results');
       const statsEl = document.getElementById('tarefas-stats');
@@ -1517,8 +1570,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const emAndamentoAll = getCoursesEmAndamentoForTarefas();
       const totalAll = emBreveAll.length + emAndamentoAll.length;
 
-      const emBreve = filterTarefasBySearch(emBreveAll);
       const emAndamento = filterTarefasBySearch(emAndamentoAll);
+      const emBreve = filterTarefasBySearch(emBreveAll);
       const totalFiltered = emBreve.length + emAndamento.length;
       const hasSearch = !!document.getElementById('tarefas-search')?.value.trim();
 
@@ -1552,15 +1605,18 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (totalAll === 0) {
         emptyEl?.classList.remove('hidden');
         noResultsEl?.classList.add('hidden');
+        prioritySection?.classList.add('hidden');
         emBreveSection?.classList.add('hidden');
         emAndamentoSection?.classList.add('hidden');
         return;
       }
 
       emptyEl?.classList.add('hidden');
+      prioritySection?.classList.remove('hidden');
 
       if (hasSearch && totalFiltered === 0) {
         noResultsEl?.classList.remove('hidden');
+        prioritySection?.classList.add('hidden');
         emBreveSection?.classList.add('hidden');
         emAndamentoSection?.classList.add('hidden');
         return;
@@ -1568,20 +1624,20 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       noResultsEl?.classList.add('hidden');
 
-      if (emBreve.length > 0) {
-        emBreveSection?.classList.remove('hidden');
-        emBreveList.innerHTML = emBreve.map(renderTarefasShelfCard).join('');
-      } else {
-        emBreveSection?.classList.add('hidden');
-        emBreveList.innerHTML = '';
-      }
-
       if (emAndamento.length > 0) {
         emAndamentoSection?.classList.remove('hidden');
         emAndamentoList.innerHTML = emAndamento.map(renderTarefasShelfCard).join('');
       } else {
         emAndamentoSection?.classList.add('hidden');
         emAndamentoList.innerHTML = '';
+      }
+
+      if (emBreve.length > 0) {
+        emBreveSection?.classList.remove('hidden');
+        emBreveList.innerHTML = emBreve.map(renderTarefasShelfCard).join('');
+      } else {
+        emBreveSection?.classList.add('hidden');
+        emBreveList.innerHTML = '';
       }
     }
 
@@ -1689,10 +1745,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (tarefasContent && !tarefasContent.classList.contains('hidden')) {
         renderTarefas();
       }
-      // Verificar e atualizar status automaticamente
-      checkAndUpdateAllCourseStatuses();
-      
-      // Atualizar notificações
       checkNotifications();
     }
 
@@ -1803,7 +1855,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     
     function getStatusClass(status) {
       const normalized = normalizeStatus(status);
-      if (normalized.includes('concluído')) return 'completed';
+      if (normalized.includes('concluído') || normalized.includes('concluido')) return 'completed';
+      if (normalized.includes('breve')) return 'pending';
       if (normalized.includes('andamento')) return 'in-progress';
       if (normalized.includes('pendente')) return 'pending';
       if (normalized.includes('atrasado')) return 'delayed';
@@ -2459,7 +2512,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         'concluído': { label: 'Concluído', style: 'bg-[rgba(52,199,89,0.15)] text-[#34C759] border-[rgba(52,199,89,0.2)]' },
         'pendente': { label: 'Pendente', style: 'bg-[rgba(255,149,0,0.15)] text-[#FF9500] border-[rgba(255,149,0,0.2)]' },
         'em andamento': { label: 'Em andamento', style: 'bg-[rgba(0,122,255,0.15)] text-[#007AFF] border-[rgba(0,122,255,0.2)]' },
-        'em andamento.': { label: 'Em andamento', style: 'bg-[rgba(0,122,255,0.15)] text-[#007AFF] border-[rgba(0,122,255,0.2)]' }
+        'em andamento.': { label: 'Em andamento', style: 'bg-[rgba(0,122,255,0.15)] text-[#007AFF] border-[rgba(0,122,255,0.2)]' },
+        'em breve': { label: 'Em breve', style: 'bg-[rgba(255,149,0,0.15)] text-[#FF9500] border-[rgba(255,149,0,0.2)]' }
       };
       
       const statusInfo = statusMap[normalized] || { label: String(status).trim() || 'Pendente', style: 'bg-[rgba(142,142,147,0.15)] text-[#8e8e93] border-[rgba(142,142,147,0.2)]' };
@@ -2674,6 +2728,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           concludentes: courses[courseIndex].concludentes,
           dataInicio: courses[courseIndex].dataInicio,
           dataFim: courses[courseIndex].dataFim,
+          turmaFormada: courses[courseIndex].turmaFormada,
           lastModified: courses[courseIndex].lastModified
         };
         
@@ -2682,6 +2737,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           courseId: currentEditCourse.id, 
           oldValues: JSON.parse(JSON.stringify(oldValues))
         });
+
+        const hadTurmaFormada = isTurmaFechada(courses[courseIndex]);
         
         // Atualizar valores
         courses[courseIndex].idCurso = idCurso;
@@ -2700,34 +2757,26 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           at: new Date().toISOString()
         };
         
-        // Se status mudou de Pendente, remover marcação de turma formada
-        const normalizedNewStatus = normalizeStatus(status);
-        if (normalizedNewStatus !== 'pendente') {
-          courses[courseIndex].turmaFormada = false;
-        }
-        
         // Atualização automática de status
         updateCourseStatusAutomatically(courses[courseIndex]);
+        preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
         
         // Atualizar também no filteredCourses
         const filteredIndex = filteredCourses.findIndex(c => c.id === currentEditCourse.id);
         if (filteredIndex !== -1) {
-          filteredCourses[filteredIndex].idCurso = idCurso;
-          filteredCourses[filteredIndex].tipologia = tipologia;
-          filteredCourses[filteredIndex].cargaHoraria = cargaHoraria;
-          filteredCourses[filteredIndex].lote = lote;
-          filteredCourses[filteredIndex].municipio = municipio;
-          filteredCourses[filteredIndex].cozinha = cozinha;
-          filteredCourses[filteredIndex].dataInicio = dataInicio;
-          filteredCourses[filteredIndex].dataFim = dataFim;
-          filteredCourses[filteredIndex].status = status;
-          filteredCourses[filteredIndex].turno = turno;
-          filteredCourses[filteredIndex].concludentes = concludentes;
+          filteredCourses[filteredIndex].idCurso = courses[courseIndex].idCurso;
+          filteredCourses[filteredIndex].tipologia = courses[courseIndex].tipologia;
+          filteredCourses[filteredIndex].cargaHoraria = courses[courseIndex].cargaHoraria;
+          filteredCourses[filteredIndex].lote = courses[courseIndex].lote;
+          filteredCourses[filteredIndex].municipio = courses[courseIndex].municipio;
+          filteredCourses[filteredIndex].cozinha = courses[courseIndex].cozinha;
+          filteredCourses[filteredIndex].dataInicio = courses[courseIndex].dataInicio;
+          filteredCourses[filteredIndex].dataFim = courses[courseIndex].dataFim;
+          filteredCourses[filteredIndex].status = courses[courseIndex].status;
+          filteredCourses[filteredIndex].turno = courses[courseIndex].turno;
+          filteredCourses[filteredIndex].concludentes = courses[courseIndex].concludentes;
           filteredCourses[filteredIndex].lastModified = courses[courseIndex].lastModified;
-          // Remover turma formada se status não for Pendente
-          if (normalizedNewStatus !== 'pendente') {
-            filteredCourses[filteredIndex].turmaFormada = false;
-          }
+          filteredCourses[filteredIndex].turmaFormada = courses[courseIndex].turmaFormada;
         }
         
         // Preparar mudanças para log
@@ -4566,7 +4615,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         }
         
         // Cursos com turmas formadas (sem datas)
-        if (course.turmaFormada && !course.dataInicio && !course.dataFim) {
+        if (isTurmaFechada(course) && !course.dataInicio && !course.dataFim) {
           return true;
         }
         
@@ -4721,7 +4770,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         }
         
         // Cursos com turmas formadas (sem datas)
-        if (course.turmaFormada && !course.dataInicio && !course.dataFim) {
+        if (isTurmaFechada(course) && !course.dataInicio && !course.dataFim) {
           return true;
         }
         
@@ -4779,7 +4828,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         // Cursos a iniciar: 
         // - Com turma formada sem data
         // - Que iniciam no mês atual (mesmo que terminem em outro mês)
-        if (course.turmaFormada && !course.dataInicio && !course.dataFim) {
+        if (isTurmaFechada(course) && !course.dataInicio && !course.dataFim) {
           cursosAIniciar.push(course);
         } else if (iniciaNoMes) {
           cursosAIniciar.push(course);
@@ -5001,78 +5050,43 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     // Renderizar Cronograma
-    function renderCronograma() {
-      if (cronogramaViewMode === 'timeline') {
-        renderCronogramaTimeline();
-      } else {
-        renderCronogramaGrid();
-      }
-    }
-    
-    function renderCronogramaGrid() {
-      const container = document.getElementById('cronograma-cards');
-      if (!container) return;
-
-      if (courses.length === 0) {
-        container.innerHTML = `
-          <div class="col-span-full text-center py-16">
-            <div class="w-20 h-20 bg-[rgba(142,142,147,0.1)] rounded-[20px] flex items-center justify-center mx-auto mb-6">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-[#8e8e93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <p class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-2" style="letter-spacing: -0.02em;">Nenhum curso cadastrado</p>
-            <p class="text-sm text-[#8e8e93]">Importe uma planilha ou adicione cursos manualmente</p>
-          </div>
-        `;
-        return;
-      }
-
+    function getFilteredCronogramaCourses() {
       const sortedCourses = sortCronogramaCourses(courses);
-
-      // Aplicar filtro de pesquisa se existir
       const searchTerm = document.getElementById('cronograma-search')?.value.toLowerCase() || '';
-      const filteredCourses = searchTerm ? sortedCourses.filter(course => {
+      if (!searchTerm) return sortedCourses;
+      return sortedCourses.filter(course => {
         const id = (course.idCurso || '').toLowerCase();
         const tipologia = (course.tipologia || '').toLowerCase();
         const municipio = (course.municipio || '').toLowerCase();
         return id.includes(searchTerm) || tipologia.includes(searchTerm) || municipio.includes(searchTerm);
-      }) : sortedCourses;
+      });
+    }
 
-      if (filteredCourses.length === 0) {
-        container.innerHTML = `
-          <div class="col-span-full text-center py-16">
-            <p class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-2">Nenhum curso encontrado</p>
-            <p class="text-sm text-[#8e8e93]">Tente ajustar sua pesquisa</p>
-          </div>
-        `;
-        return;
+    function renderCronograma() {
+      const filteredCourses = courses.length === 0 ? [] : getFilteredCronogramaCourses();
+      renderCronogramaPrioritySection(filteredCourses);
+
+      if (cronogramaViewMode === 'timeline') {
+        renderCronogramaTimeline(filteredCourses);
+      } else {
+        renderCronogramaGrid(filteredCourses);
       }
+    }
+    
+    function renderCronogramaCardHtml(course, options = {}) {
+      const statusClass = getStatusClass(course.status);
+      const highlight = !!options.highlight;
 
-      // Agrupar cursos se necessário
-      const groupBy = document.getElementById('cronograma-group-by')?.value || 'none';
-      let coursesToRender = filteredCourses;
-      
-      if (groupBy !== 'none') {
-        // Renderizar agrupado
-        container.innerHTML = renderGroupedCourses(filteredCourses, groupBy);
-        return;
-      }
-
-      container.innerHTML = filteredCourses.map(course => {
-        const statusClass = getStatusClass(course.status);
-
-        return `
-          <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all duration-200" onclick="openCronogramaCourseModal('${course.id}')">
+      return `
+          <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all duration-200 ${highlight ? 'ring-2 ring-[#007AFF]/30' : ''}" onclick="openCronogramaCourseModal('${course.id}')">
             <div class="space-y-3">
-              <!-- Header com Status -->
               <div class="flex items-start justify-between">
                 <div class="flex-1">
                   <div class="flex items-center gap-2 mb-1">
                     <h3 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base line-clamp-2 flex-1" style="letter-spacing: -0.01em;">${course.tipologia}</h3>
-                    ${normalizeStatus(course.status || '') === 'pendente' && userRole === 'admin' ? `
-                      <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity" title="${course.turmaFormada ? 'Turma formada - Clique para desmarcar' : 'Marcar turma formada'}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 ${course.turmaFormada ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${course.turmaFormada ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
+                    ${userRole === 'admin' ? `
+                      <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity" title="${isTurmaFechada(course) ? 'Turma formada - Clique para desmarcar' : 'Marcar turma formada'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
                           <path d="M3 21l9-18 9 18H3z"/>
                         </svg>
                       </button>
@@ -5083,7 +5097,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                 <span class="status-badge ${statusClass}">${course.status || 'Pendente'}</span>
               </div>
 
-              <!-- Informações principais -->
               <div class="space-y-2 text-sm">
                 <div class="flex items-center gap-2 text-[#8e8e93]">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -5131,7 +5144,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
               </div>
 
               ${isLoggedIn ? `
-              <!-- Botões Album e Instrumentais -->
               <div class="flex gap-2 pt-2 border-t border-[rgba(0,0,0,0.1)] dark:border-[rgba(255,255,255,0.1)]">
                 <button onclick="event.stopPropagation(); openDriveLink('${course.id}', 'album')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[rgba(0,122,255,0.1)] hover:bg-[rgba(0,122,255,0.2)] text-[#007AFF] rounded-[10px] transition-colors text-xs font-medium">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -5150,7 +5162,128 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             </div>
           </div>
         `;
-      }).join('');
+    }
+
+    function renderCronogramaPrioritySection(coursesList) {
+      const priorityEl = document.getElementById('cronograma-priority');
+      if (!priorityEl) return;
+
+      const turmasFormadas = sortCoursesByStartDate(coursesList.filter(isTurmaFechada));
+      const emAndamento = sortCoursesByStartDate(
+        coursesList.filter(c => !isTurmaFechada(c) && isCourseEmAndamento(c) && !isCourseConcluido(c))
+      );
+      const emBreve = sortCoursesByStartDate(
+        coursesList.filter(c => !isTurmaFechada(c) && !isCourseEmAndamento(c) && isCourseEmBreve(c))
+      );
+
+      const sections = [];
+
+      if (turmasFormadas.length > 0) {
+        sections.push(`
+          <div class="card-elegant rounded-[20px] p-5 ring-2 ring-[#007AFF]/25">
+            <h3 class="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#007AFF]"></span>
+              Turmas formadas
+            </h3>
+            <p class="text-sm text-muted-foreground mb-4">Prioridade máxima — turmas com flag de turma formada</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${turmasFormadas.map(course => renderCronogramaCardHtml(course, { highlight: true })).join('')}
+            </div>
+          </div>
+        `);
+      }
+
+      if (emAndamento.length > 0) {
+        sections.push(`
+          <div class="card-elegant rounded-[20px] p-5">
+            <h3 class="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#34C759]"></span>
+              Em andamento
+            </h3>
+            <p class="text-sm text-muted-foreground mb-4">Ordenadas por data de início</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${emAndamento.map(course => renderCronogramaCardHtml(course, { highlight: true })).join('')}
+            </div>
+          </div>
+        `);
+      }
+
+      if (emBreve.length > 0) {
+        sections.push(`
+          <div class="card-elegant rounded-[20px] p-5">
+            <h3 class="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#FF9500]"></span>
+              Em breve
+            </h3>
+            <p class="text-sm text-muted-foreground mb-4">Ordenadas por data de início</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${emBreve.map(course => renderCronogramaCardHtml(course, { highlight: true })).join('')}
+            </div>
+          </div>
+        `);
+      }
+
+      if (sections.length === 0) {
+        priorityEl.classList.add('hidden');
+        priorityEl.innerHTML = '';
+        return;
+      }
+
+      priorityEl.classList.remove('hidden');
+      priorityEl.innerHTML = sections.join('');
+    }
+
+    function renderCronogramaGrid(filteredCourses) {
+      const container = document.getElementById('cronograma-cards');
+      if (!container) return;
+
+      if (courses.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-16">
+            <div class="w-20 h-20 bg-[rgba(142,142,147,0.1)] rounded-[20px] flex items-center justify-center mx-auto mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-[#8e8e93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-2" style="letter-spacing: -0.02em;">Nenhum curso cadastrado</p>
+            <p class="text-sm text-[#8e8e93]">Importe uma planilha ou adicione cursos manualmente</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (!filteredCourses || filteredCourses.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-16">
+            <p class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-2">Nenhum curso encontrado</p>
+            <p class="text-sm text-[#8e8e93]">Tente ajustar sua pesquisa</p>
+          </div>
+        `;
+        return;
+      }
+
+      const groupBy = document.getElementById('cronograma-group-by')?.value || 'none';
+      const otherCourses = filteredCourses.filter(c => !isCronogramaPriorityCourse(c));
+
+      if (groupBy !== 'none') {
+        container.innerHTML = otherCourses.length > 0
+          ? renderGroupedCourses(otherCourses, groupBy)
+          : (filteredCourses.some(isCronogramaPriorityCourse)
+            ? `<div class="col-span-full text-center py-8 text-sm text-[#8e8e93]">Todos os cursos em destaque estão na seção Prioridade acima.</div>`
+            : '');
+        return;
+      }
+
+      let html = '';
+
+      if (otherCourses.length > 0 && filteredCourses.some(isCronogramaPriorityCourse)) {
+        html += `<div class="col-span-full mb-2"><h3 class="text-lg font-semibold text-foreground">Demais cursos</h3></div>`;
+      }
+
+      html += otherCourses.map(course => renderCronogramaCardHtml(course)).join('');
+      container.innerHTML = html || `
+        <div class="col-span-full text-center py-8 text-sm text-[#8e8e93]">Todos os cursos em destaque estão na seção Prioridade acima.</div>
+      `;
     }
 
     // Filtrar cronograma
@@ -5234,9 +5367,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                         <div class="flex items-start justify-between">
                           <div class="flex items-center gap-1.5 flex-1">
                             <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-sm line-clamp-2 flex-1">${course.tipologia}</h4>
-                            ${normalizeStatus(course.status || '') === 'pendente' && userRole === 'admin' ? `
-                              <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${course.turmaFormada ? 'Turma formada' : 'Marcar turma formada'}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${course.turmaFormada ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${course.turmaFormada ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
+                            ${userRole === 'admin' ? `
+                              <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${isTurmaFechada(course) ? 'Turma formada' : 'Marcar turma formada'}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
                                   <path d="M3 21l9-18 9 18H3z"/>
                                 </svg>
                               </button>
@@ -5261,7 +5394,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
     
     // Renderizar cronograma em timeline
-    function renderCronogramaTimeline() {
+    function renderCronogramaTimeline(filteredCourses) {
       const container = document.getElementById('cronograma-timeline');
       if (!container) return;
       
@@ -5275,25 +5408,20 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         return;
       }
       
-      // Aplicar filtro de pesquisa
-      const searchTerm = document.getElementById('cronograma-search')?.value.toLowerCase() || '';
-      let filteredCourses = courses;
-      
-      if (searchTerm) {
-        filteredCourses = courses.filter(course => {
-          const id = (course.idCurso || '').toLowerCase();
-          const tipologia = (course.tipologia || '').toLowerCase();
-          const municipio = (course.municipio || '').toLowerCase();
-          return id.includes(searchTerm) || tipologia.includes(searchTerm) || municipio.includes(searchTerm);
-        });
-      }
-      
-      if (filteredCourses.length === 0) {
+      if (!filteredCourses || filteredCourses.length === 0) {
         container.innerHTML = `
           <div class="text-center py-16">
             <p class="text-lg font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-2">Nenhum curso encontrado</p>
             <p class="text-sm text-[#8e8e93]">Tente ajustar sua pesquisa</p>
           </div>
+        `;
+        return;
+      }
+
+      const timelineCourses = filteredCourses.filter(c => !isCronogramaPriorityCourse(c));
+      if (timelineCourses.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-sm text-[#8e8e93]">Todos os cursos em destaque estão na seção Prioridade acima.</div>
         `;
         return;
       }
@@ -5303,7 +5431,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const groups = {};
       const today = new Date();
       
-      filteredCourses.forEach(course => {
+      timelineCourses.forEach(course => {
         let groupKey = '';
         let groupLabel = '';
         let sortKey = '';
@@ -5404,9 +5532,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                           <div class="flex items-start justify-between mb-2">
                             <div class="flex items-center gap-1.5 flex-1">
                               <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base flex-1">${course.tipologia}</h4>
-                              ${normalizeStatus(course.status || '') === 'pendente' && userRole === 'admin' ? `
-                                <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${course.turmaFormada ? 'Turma formada' : 'Marcar turma formada'}">
-                                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${course.turmaFormada ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${course.turmaFormada ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
+                              ${userRole === 'admin' ? `
+                                <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${isTurmaFechada(course) ? 'Turma formada' : 'Marcar turma formada'}">
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
                                     <path d="M3 21l9-18 9 18H3z"/>
                                   </svg>
                                 </button>
@@ -5546,6 +5674,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const courseIndex = courses.findIndex(c => c.id === currentEditCourse.id);
       if (courseIndex === -1) return;
 
+      const hadTurmaFormada = isTurmaFechada(courses[courseIndex]);
+
       // Guardar valores antigos para log
       const oldValues = {
         idCurso: courses[courseIndex].idCurso,
@@ -5585,6 +5715,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         by: currentUser?.email || 'Sistema',
         at: new Date().toISOString()
       };
+
+      updateCourseStatusAutomatically(courses[courseIndex]);
+      preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
 
       // Preparar mudanças para log
       const changes = {};
@@ -6289,64 +6422,56 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     function updateCourseStatusAutomatically(course) {
       if (!course) return;
       
+      const hadTurmaFormada = isTurmaFechada(course);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const status = normalizeStatus(course.status || '');
-      const hasDataInicio = course.dataInicio;
-      const hasDataFim = course.dataFim;
-      
-      // PENDENTE + data início e fim -> EM BREVE
-      if (status === 'pendente' && hasDataInicio && hasDataFim) {
-        course.status = 'Em breve';
-        logAction('Status Atualizado Automaticamente', {
-          courseId: course.idCurso,
-          tipologia: course.tipologia,
-          from: 'Pendente',
-          to: 'Em breve',
-          reason: 'Data de início e fim definidas'
-        });
-      }
-      
-      // EM BREVE + chegou data início -> EM ANDAMENTO
-      if ((status.includes('breve') || course.status === 'Em breve') && hasDataInicio) {
+      let status = normalizeStatus(course.status || '');
+      const hasDataInicio = !!course.dataInicio;
+
+      // Pendente + data de início -> Em breve (futuro) ou Em andamento (já iniciou)
+      if (status === 'pendente' && hasDataInicio) {
         const dataInicio = new Date(course.dataInicio);
         dataInicio.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((today - dataInicio) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays >= 0) {
+        course.status = today < dataInicio ? 'Em breve' : 'Em andamento';
+        status = normalizeStatus(course.status);
+      }
+
+      // Em breve + data de início chegou -> Em andamento
+      if (status.includes('breve') && hasDataInicio) {
+        const dataInicio = new Date(course.dataInicio);
+        dataInicio.setHours(0, 0, 0, 0);
+        if (today >= dataInicio) {
           course.status = 'Em andamento';
-          logAction('Status Atualizado Automaticamente', {
-            courseId: course.idCurso,
-            tipologia: course.tipologia,
-            from: 'Em breve',
-            to: 'Em andamento',
-            reason: 'Data de início chegou'
-          });
         }
       }
+
+      preserveTurmaFormadaFlag(course, hadTurmaFormada);
     }
     
     // Função para verificar e atualizar status de todos os cursos
     function checkAndUpdateAllCourseStatuses() {
       let hasChanges = false;
       courses.forEach(course => {
+        const hadTurmaFormada = isTurmaFechada(course);
         const oldStatus = course.status;
         updateCourseStatusAutomatically(course);
-        if (oldStatus !== course.status) {
+        preserveTurmaFormadaFlag(course, hadTurmaFormada);
+        if (oldStatus !== course.status || (hadTurmaFormada && !isTurmaFechada(course))) {
           hasChanges = true;
-          // Atualizar também no filteredCourses
-          const filteredIndex = filteredCourses.findIndex(c => c.id === course.id);
-          if (filteredIndex !== -1) {
-            filteredCourses[filteredIndex].status = course.status;
-          }
+          syncCourseToFiltered(course.id);
         }
       });
       
       // Salvar alterações se houver
       if (hasChanges) {
         saveToStorage();
-        renderAll();
+        renderActionCards();
+        renderStats();
+        renderLotSections();
+        if (document.getElementById('cronograma-cards')) renderCronograma();
+        renderTarefas();
+        checkNotifications();
       }
     }
     
@@ -6362,13 +6487,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       const courseIndex = courses.findIndex(c => c.id === courseId);
       if (courseIndex === -1) return;
-      
-      // Só permite marcar/desmarcar se status for Pendente
-      const currentStatus = normalizeStatus(courses[courseIndex].status || '');
-      if (currentStatus !== 'pendente') {
-        showToast('Apenas cursos com status "Pendente" podem ter turma formada marcada.', 'info');
-        return;
-      }
       
       courses[courseIndex].turmaFormada = !courses[courseIndex].turmaFormada;
       
@@ -6865,6 +6983,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const courseIndex = courses.findIndex(c => c.id === courseId);
       if (courseIndex === -1) return;
 
+      const hadTurmaFormada = isTurmaFechada(courses[courseIndex]);
+
       // Validação: se for concluído, concludentes é obrigatório
       if (newStatus === 'Concluído' && (!concludentesInput.value || concludentes === null)) {
         alert('Por favor, informe a quantidade de concludentes ao concluir um curso.');
@@ -6877,6 +6997,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (newStatus === 'Concluído' && concludentes !== null) {
         courses[courseIndex].concludentes = concludentes;
       }
+      preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
 
       // Log da ação
       logAction('Atualização Rápida de Status', {
