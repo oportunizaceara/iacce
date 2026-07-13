@@ -67,6 +67,9 @@
       
       // Trigger ready event
       window.dispatchEvent(new Event('firebase-ready'));
+      if (typeof window.bootFirebaseSync === 'function') {
+        window.bootFirebaseSync();
+      }
     }).catch(error => {
       console.error('Erro ao carregar Firebase:', error);
     });
@@ -1794,7 +1797,7 @@
     </div>
   </div>
 
-  <script src="./assets/app.js?v=11"></script>
+  <script src="./assets/app.js?v=12"></script>
 </body>
 </html>
 
