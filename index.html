@@ -440,6 +440,9 @@
         </div>
       </div>
 
+      <!-- Turmas prioritárias (sempre no topo) -->
+      <div id="cronograma-priority" class="hidden mb-6 space-y-4"></div>
+
       <!-- Barra de Pesquisa e Controles -->
       <div class="card-secondary rounded-[20px] p-4 mb-6">
         <div class="flex items-center gap-3 mb-4">
@@ -520,6 +523,24 @@
         <p class="text-muted-foreground">Checklist de preparação e acompanhamento das turmas que iniciam em breve ou estão em andamento</p>
       </div>
 
+      <div id="tarefas-priority-section" class="space-y-6">
+        <div id="tarefas-em-andamento-section" class="space-y-4">
+          <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#007AFF]"></span>
+            Em andamento
+          </h3>
+          <div id="tarefas-em-andamento-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        </div>
+
+        <div id="tarefas-em-breve-section" class="space-y-4">
+          <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#FF9500]"></span>
+            Iniciando em breve
+          </h3>
+          <div id="tarefas-em-breve-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        </div>
+      </div>
+
       <div id="tarefas-stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
 
       <div class="card-secondary rounded-[20px] p-4">
@@ -539,22 +560,6 @@
         </svg>
         <p class="text-lg font-medium text-foreground mb-1">Nenhum resultado encontrado</p>
         <p class="text-sm text-muted-foreground">Tente buscar por outro ID, tipologia ou município.</p>
-      </div>
-
-      <div id="tarefas-em-breve-section" class="space-y-4">
-        <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-[#FF9500]"></span>
-          Iniciando em breve
-        </h3>
-        <div id="tarefas-em-breve-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
-      </div>
-
-      <div id="tarefas-em-andamento-section" class="space-y-4">
-        <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-[#007AFF]"></span>
-          Em andamento
-        </h3>
-        <div id="tarefas-em-andamento-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
       </div>
 
       <div id="tarefas-empty" class="hidden card-elegant rounded-[20px] p-10 text-center">
@@ -1787,7 +1792,7 @@
     </div>
   </div>
 
-  <script src="./assets/app.js"></script>
+  <script src="./assets/app.js?v=7"></script>
 </body>
 </html>
 
