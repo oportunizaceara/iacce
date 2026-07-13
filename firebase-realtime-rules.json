@@ -2,23 +2,23 @@
   "rules": {
     "courses": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+      ".write": "auth != null",
+      "$courseId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
     },
     "responsibles": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+      ".write": "auth != null"
     },
     "lotResponsibles": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+      ".write": "auth != null"
     },
-    "actionLogs": {
-      ".read": "auth != null && auth.token.role == 'admin'",
-      ".write": "auth != null && auth.token.role == 'admin'"
-    },
-    "users": {
-      ".read": "auth != null && auth.token.role == 'admin'",
-      ".write": "auth != null && auth.token.role == 'admin'"
+    "courseChecklists": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     },
     "calendarEvents": {
       ".read": "auth != null",
@@ -28,9 +28,17 @@
       ".read": "auth != null",
       ".write": "auth != null"
     },
-    "courseChecklists": {
+    "lastSync": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+      ".write": "auth != null"
+    },
+    "actionLogs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }

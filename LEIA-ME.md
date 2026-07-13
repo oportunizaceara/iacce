@@ -37,8 +37,8 @@ Adicione: `seu-usuario.github.io`
 3. O formulário deve abrir
 4. Console (F12): `[IAC] instructors-boot.js carregado`
 
-## Correções v30
+## Correções v31
 
-- Corrigido carregamento infinito na logo inicial
-- Scripts carregam com caminho correto para GitHub Pages
-- Fallback automático se algum script falhar
+- HTML padrão com `<script src="...">` e `<link href="...">` normais
+- Sem carregamento dinâmico de scripts
+- `instructors-boot.js` garante o botão Novo Instrutor
