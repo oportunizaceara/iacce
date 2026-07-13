@@ -32,10 +32,10 @@
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Calendário",
-      "short_name": "Calendário",
-      "description": "Ver calendário",
-      "url": "/#calendar",
+      "name": "Tarefas",
+      "short_name": "Tarefas",
+      "description": "Ver tarefas das turmas",
+      "url": "/#tarefas",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
