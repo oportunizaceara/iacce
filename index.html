@@ -126,7 +126,7 @@
     }
     }
   </script>
-  <link rel="stylesheet" href="./assets/app.css?v=25">
+  <link rel="stylesheet" href="./assets/app.css?v=26">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -891,7 +891,7 @@
           <h2 class="section-title">Instrutores</h2>
           <p class="section-subtitle">Contratos, turmas e pagamentos</p>
         </div>
-        <button type="button" onclick="openInstructorModal()" class="course-link-btn admin-only">+ Novo instrutor</button>
+        <button type="button" id="btn-add-instructor" class="course-link-btn">+ Novo instrutor</button>
       </div>
       <div id="instructors-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </main>
@@ -914,9 +914,9 @@
   </div>
 
   <!-- Modal Instrutor -->
-  <div id="instructor-modal" class="fixed inset-0 z-[1100] hidden">
+  <div id="instructor-modal" class="fixed inset-0 z-[1200] hidden items-center justify-center p-4">
     <div class="modal-overlay absolute inset-0 z-0" onclick="closeInstructorModal()"></div>
-    <div class="modal-content instructor-modal-panel relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden md:rounded-2xl shadow-2xl mx-auto" onclick="event.stopPropagation()">
+    <div class="modal-content instructor-modal-panel relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden md:rounded-2xl shadow-2xl" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between p-4 md:p-6 border-b border-border/30 flex-shrink-0">
         <h2 id="instructor-modal-title" class="text-xl font-semibold text-foreground">Novo Instrutor</h2>
         <button type="button" onclick="closeInstructorModal()" class="p-2 hover:bg-secondary rounded-lg transition-colors" aria-label="Fechar">
@@ -1852,8 +1852,8 @@
     </div>
   </div>
 
-  <script src="./assets/app.js?v=25"></script>
-  <script src="./assets/views.js?v=25"></script>
+  <script src="./assets/app.js?v=26"></script>
+  <script src="./assets/views.js?v=26"></script>
 </body>
 </html>
 
