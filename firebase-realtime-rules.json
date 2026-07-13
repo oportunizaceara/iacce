@@ -31,6 +31,10 @@
     "courseChecklists": {
       ".read": "auth != null",
       ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
+    },
+    "lastSync": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'user')"
     }
   }
 }
