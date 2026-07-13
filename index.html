@@ -55,6 +55,9 @@
         signInWithEmailAndPassword: firebaseAuth.signInWithEmailAndPassword,
         signOut: firebaseAuth.signOut,
         onAuthStateChanged: firebaseAuth.onAuthStateChanged,
+        setPersistence: firebaseAuth.setPersistence,
+        browserLocalPersistence: firebaseAuth.browserLocalPersistence,
+        browserSessionPersistence: firebaseAuth.browserSessionPersistence,
         ref: firebaseDatabase.ref,
         get: firebaseDatabase.get,
         set: firebaseDatabase.set,
@@ -112,7 +115,7 @@
       };
     }
   </script>
-  <link rel="stylesheet" href="assets/app.css?v=32">
+  <link rel="stylesheet" href="assets/app.css?v=33">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -516,6 +519,17 @@
         <p class="text-muted-foreground">Checklist de preparação e acompanhamento das turmas que iniciam em breve ou estão em andamento</p>
       </div>
 
+      <div class="card-secondary rounded-[20px] p-4">
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8e8e93] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" id="tarefas-search" placeholder="Pesquisar por ID, Tipologia ou Município..."
+            class="flex-1 px-4 py-2 bg-transparent text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#8e8e93] focus:outline-none"
+            oninput="renderTarefas()">
+        </div>
+      </div>
+
       <div id="tarefas-priority-section" class="space-y-6">
         <div id="tarefas-em-andamento-section" class="space-y-4">
           <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
@@ -535,17 +549,6 @@
       </div>
 
       <div id="tarefas-stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
-
-      <div class="card-secondary rounded-[20px] p-4">
-        <div class="flex items-center gap-3">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8e8e93] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input type="text" id="tarefas-search" placeholder="Pesquisar por ID, Tipologia ou Município..."
-            class="flex-1 px-4 py-2 bg-transparent text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#8e8e93] focus:outline-none"
-            oninput="renderTarefas()">
-        </div>
-      </div>
 
       <div id="tarefas-no-results" class="hidden card-elegant rounded-[20px] p-10 text-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#8e8e93] mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -1838,9 +1841,9 @@
     </div>
   </div>
 
-  <script src="assets/instructors-boot.js?v=32"></script>
-  <script src="assets/app.js?v=32"></script>
-  <script src="assets/views.js?v=32"></script>
+  <script src="assets/instructors-boot.js?v=33"></script>
+  <script src="assets/app.js?v=33"></script>
+  <script src="assets/views.js?v=33"></script>
 </body>
 </html>
 
