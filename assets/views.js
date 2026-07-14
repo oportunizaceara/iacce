@@ -3,14 +3,28 @@ const STORAGE_KEY_INSTRUCTORS = 'instructors_data';
 const STORAGE_KEY_WIDGETS = 'dashboard_widgets_order';
 const DEFAULT_WIDGETS = ['summary', 'actions', 'stats', 'filters', 'lots'];
 
-let instructors = {};
+function iacIsLoggedIn() {
+  if (typeof window.__iacIsLoggedIn === 'function') return window.__iacIsLoggedIn();
+  return !!window.__iacIsLoggedIn;
+}
+
+function iacCourses() {
+  if (typeof window.__iacGetCourses === 'function') return window.__iacGetCourses();
+  return Array.isArray(window.__iacCourses) ? window.__iacCourses : [];
+}
+
+function getInstructorsData() {
+  if (!window.instructors || typeof window.instructors !== 'object') {
+    window.instructors = {};
+  }
+  return window.instructors;
+}
+
 let currentCoursePageId = null;
 let currentInstructorPageId = null;
 let currentCourseSection = 'overview';
 let lastActiveTab = 'cronograma';
-let unsubscribeInstructors = null;
 let instructorCourseSearchOpen = false;
-let lastAppliedInstructorsSignature = '';
 
   function instructorEditGuard() {
     if (typeof window.requireInstructorEditAccess === 'function') return window.requireInstructorEditAccess();
@@ -29,7 +43,7 @@ let lastAppliedInstructorsSignature = '';
   }
 
   function getCourseById(id) {
-    return courses.find(c => c.id === id);
+    return iacCourses().find(c => c.id === id);
   }
 
   function setTabPanelVisible(el, visible) {
@@ -121,7 +135,7 @@ let lastAppliedInstructorsSignature = '';
 
   window.setCourseSection = function setCourseSection(section) {
     const restricted = ['checklist', 'timeline', 'observacoes'];
-    if (restricted.includes(section) && !isLoggedIn) {
+    if (restricted.includes(section) && !iacIsLoggedIn()) {
       showToast('Faça login para acessar esta seção.', 'error');
       return;
     }
@@ -237,12 +251,12 @@ let lastAppliedInstructorsSignature = '';
     const statusClass = typeof getStatusClass === 'function' ? getStatusClass(course.status) : 'pending';
 
     const restrictedSections = ['checklist', 'timeline', 'observacoes'];
-    if (!isLoggedIn && restrictedSections.includes(currentCourseSection)) {
+    if (!iacIsLoggedIn() && restrictedSections.includes(currentCourseSection)) {
       currentCourseSection = 'overview';
     }
 
     const sections = [['overview', '📋', 'Visão geral']];
-    if (isLoggedIn) {
+    if (iacIsLoggedIn()) {
       sections.push(
         ['checklist', '✅', 'Checklist'],
         ['timeline', '🕐', 'Timeline'],
@@ -277,79 +291,47 @@ let lastAppliedInstructorsSignature = '';
     const course = getCourseById(courseId);
     if (!course) return;
     course.observacoes = input.value.trim();
-    if (typeof saveCoursePatch === 'function') await saveCoursePatch(courseId, { observacoes: course.observacoes });
-    else if (typeof saveToStorage === 'function') await saveToStorage(true);
+    if (typeof window.saveCoursePatch === 'function') await window.saveCoursePatch(courseId, { observacoes: course.observacoes });
+    else if (typeof window.saveToStorage === 'function') await window.saveToStorage(true);
     showToast('Observações salvas!', 'success');
   };
 
   /* ── Instrutores ── */
   function getInstructorName(id) {
     if (!id) return '';
-    return instructors[id]?.nome || '';
+    return getInstructorsData()[id]?.nome || '';
   }
 
-  function serializeInstructors() {
-    return JSON.stringify(instructors);
+  function refreshInstructorsUI() {
+    const listEl = document.getElementById('content-instructors');
+    const listVisible = listEl && !listEl.classList.contains('hidden');
+    if (listVisible) renderInstructorsList();
+    if (currentInstructorPageId) {
+      ensureInstructorPageVisible();
+      renderInstructorPage(currentInstructorPageId);
+    }
   }
 
-  async function saveInstructorsToFirebase() {
-    localStorage.setItem(STORAGE_KEY_INSTRUCTORS, serializeInstructors());
-    lastAppliedInstructorsSignature = serializeInstructors();
-    if (!window.database || !window.firebaseModules) {
-      if (typeof showToast === 'function') showToast('Salvo localmente. Sincronizará quando o Firebase estiver disponível.', 'info');
-      return;
-    }
-    try {
-      const { ref, set } = window.firebaseModules;
-      await set(ref(window.database, 'instructors'), instructors);
-      if (typeof bumpLastSync === 'function') await bumpLastSync();
-    } catch (e) {
-      console.warn('Erro ao salvar instrutores:', e);
-      if (typeof showToast === 'function') showToast('Erro ao sincronizar instrutor. Dados salvos localmente.', 'error');
-    }
-  }
+  window.refreshInstructorsUI = refreshInstructorsUI;
 
   function loadInstructorsFromLocal() {
     try {
-      instructors = JSON.parse(localStorage.getItem(STORAGE_KEY_INSTRUCTORS)) || {};
-      window.instructors = instructors;
-      lastAppliedInstructorsSignature = serializeInstructors();
-    } catch (_) { instructors = {}; }
+      window.instructors = JSON.parse(localStorage.getItem(STORAGE_KEY_INSTRUCTORS)) || {};
+    } catch (_) {
+      window.instructors = {};
+    }
   }
-
-  window.setupInstructorsListener = function setupInstructorsListener() {
-    if (!window.database || !window.firebaseModules || !isLoggedIn) return;
-    if (unsubscribeInstructors) unsubscribeInstructors();
-    const { ref, onValue } = window.firebaseModules;
-    unsubscribeInstructors = onValue(ref(window.database, 'instructors'), (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val() || {};
-      const sig = JSON.stringify(data);
-      if (sig === lastAppliedInstructorsSignature) return;
-      instructors = data;
-      window.instructors = instructors;
-      lastAppliedInstructorsSignature = sig;
-      localStorage.setItem(STORAGE_KEY_INSTRUCTORS, sig);
-      if (document.getElementById('content-instructors') && !document.getElementById('content-instructors').classList.contains('hidden')) {
-        renderInstructorsList();
-      }
-      if (currentInstructorPageId) {
-        ensureInstructorPageVisible();
-        renderInstructorPage(currentInstructorPageId);
-      }
-    });
-  };
 
   window.renderInstructorsList = function renderInstructorsList() {
     const el = document.getElementById('instructors-list');
     if (!el) return;
-    const list = Object.values(instructors);
+    const list = Object.values(getInstructorsData());
     if (!list.length) {
       el.innerHTML = '<div class="card-elegant p-8 text-center text-muted">Nenhum instrutor cadastrado.</div>';
       return;
     }
     el.innerHTML = list.map((inst) => {
-      const coursesCount = courses.filter(c => c.instrutorId === inst.id || c.instrutor === inst.nome).length;
+      const coursesCount = iacCourses().filter(c => c.instrutorId === inst.id || c.instrutor === inst.nome).length;
       const pendingPay = (inst.pagamentos || []).filter((p) => !p.pago).length;
       const tipo = inst.tipoContrato === 'terceirizado' ? 'Terceirizado' : 'MEI';
       return `<div class="instructor-card card-elegant status-card--${inst.ativo !== false ? 'green' : 'yellow'}" onclick="openInstructorPage('${inst.id}')">
@@ -379,10 +361,10 @@ let lastAppliedInstructorsSignature = '';
 
   window.renderInstructorPage = function renderInstructorPage(id) {
     const el = document.getElementById('instructor-page-content');
-    const inst = instructors[id];
+    const inst = getInstructorsData()[id];
     if (!el || !inst) return;
 
-    const taught = courses.filter(c => c.instrutorId === id || c.instrutor === inst.nome);
+    const taught = iacCourses().filter(c => c.instrutorId === id || c.instrutor === inst.nome);
     const pagamentos = inst.pagamentos || [];
 
     const canEdit = typeof canEditCourses === 'function' && canEditCourses();
@@ -452,8 +434,9 @@ let lastAppliedInstructorsSignature = '';
       return;
     }
     const id = document.getElementById('instructor-edit-id').value || `inst-${Date.now()}`;
-    const existing = instructors[id] || {};
-    instructors[id] = {
+    const data = { ...getInstructorsData() };
+    const existing = data[id] || {};
+    data[id] = {
       ...existing,
       id,
       nome,
@@ -464,8 +447,9 @@ let lastAppliedInstructorsSignature = '';
       pagamentos: existing.pagamentos || [],
       ativo: true,
     };
-    window.instructors = instructors;
-    await saveInstructorsToFirebase();
+    if (typeof window.saveInstructorsToFirebase === 'function') {
+      await window.saveInstructorsToFirebase(data);
+    }
     closeInstructorModal();
     if (currentInstructorPageId === id) {
       ensureInstructorPageVisible();
@@ -481,29 +465,29 @@ let lastAppliedInstructorsSignature = '';
     const desc = prompt('Descrição (ex: Turma X):');
     const valor = prompt('Valor (R$):');
     if (!desc) return;
-    const inst = instructors[id];
+    const inst = getInstructorsData()[id];
     inst.pagamentos = inst.pagamentos || [];
     inst.pagamentos.push({ descricao: desc, valor: valor || '', data: new Date().toLocaleDateString('pt-BR'), pago: false });
-    saveInstructorsToFirebase();
+    if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
     renderInstructorPage(id);
   };
 
   window.toggleInstructorPagamento = function toggleInstructorPagamento(id, index) {
     if (!instructorEditGuard()) return;
-    const inst = instructors[id];
+    const inst = getInstructorsData()[id];
     if (!inst?.pagamentos?.[index]) return;
     inst.pagamentos[index].pago = !inst.pagamentos[index].pago;
-    saveInstructorsToFirebase();
+    if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
     renderInstructorPage(id);
   };
 
   window.removeInstructorPagamento = function removeInstructorPagamento(id, index) {
     if (!instructorEditGuard()) return;
-    const inst = instructors[id];
+    const inst = getInstructorsData()[id];
     if (!inst?.pagamentos?.[index]) return;
     if (!confirm('Excluir este pagamento?')) return;
     inst.pagamentos.splice(index, 1);
-    saveInstructorsToFirebase();
+    if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
     renderInstructorPage(id);
   };
 
@@ -519,12 +503,12 @@ let lastAppliedInstructorsSignature = '';
     if (!instructorEditGuard()) return;
     const course = getCourseById(courseId);
     if (!course) return;
-    if (typeof saveCoursePatch === 'function') {
-      await saveCoursePatch(courseId, { instrutorId: null, instrutor: null });
+    if (typeof window.saveCoursePatch === 'function') {
+      await window.saveCoursePatch(courseId, { instrutorId: null, instrutor: null });
     } else {
       course.instrutorId = null;
       course.instrutor = null;
-      if (typeof saveToStorage === 'function') await saveToStorage(true);
+      if (typeof window.saveToStorage === 'function') await window.saveToStorage(true);
     }
     ensureInstructorPageVisible();
     renderInstructorPage(instructorId);
@@ -543,7 +527,7 @@ let lastAppliedInstructorsSignature = '';
       return;
     }
 
-    const matches = courses.filter((c) => {
+    const matches = iacCourses().filter((c) => {
       const idCurso = String(c.idCurso || '').toLowerCase();
       const tipologia = String(c.tipologia || '').toLowerCase();
       const municipio = String(c.municipio || '').toLowerCase();
@@ -566,16 +550,16 @@ let lastAppliedInstructorsSignature = '';
 
   window.linkCourseToInstructor = async function linkCourseToInstructor(instructorId, courseId) {
     if (!instructorEditGuard()) return;
-    const inst = instructors[instructorId];
+    const inst = getInstructorsData()[instructorId];
     const course = getCourseById(courseId);
     if (!inst || !course) return;
 
-    if (typeof saveCoursePatch === 'function') {
-      await saveCoursePatch(courseId, { instrutorId: instructorId, instrutor: inst.nome });
+    if (typeof window.saveCoursePatch === 'function') {
+      await window.saveCoursePatch(courseId, { instrutorId: instructorId, instrutor: inst.nome });
     } else {
       course.instrutorId = instructorId;
       course.instrutor = inst.nome;
-      if (typeof saveToStorage === 'function') await saveToStorage(true);
+      if (typeof window.saveToStorage === 'function') await window.saveToStorage(true);
     }
 
     const search = document.getElementById('instructor-course-search');
@@ -700,10 +684,6 @@ let lastAppliedInstructorsSignature = '';
           setTabPanelVisible(document.getElementById('content-instructors'), true);
           setActiveTabButton('instructors');
           renderInstructorsList();
-          if (!window._instructorsListenerSetup && typeof setupInstructorsListener === 'function' && typeof isLoggedIn !== 'undefined' && isLoggedIn) {
-            setupInstructorsListener();
-            window._instructorsListenerSetup = true;
-          }
         }
         if (tab === 'dashboard') applyDashboardWidgetOrder();
       };

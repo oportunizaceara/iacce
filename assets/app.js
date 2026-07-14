@@ -59,7 +59,15 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (isCourseConcluido(course)) return false;
       if (isCourseEmAndamento(course)) return false;
       const status = normalizeStatus(course.status || '');
-      return status.includes('breve');
+      if (status.includes('breve')) return true;
+      if ((status === 'pendente' || status === '') && course.dataInicio) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dataInicio = new Date(course.dataInicio);
+        dataInicio.setHours(0, 0, 0, 0);
+        return today < dataInicio;
+      }
+      return false;
     }
 
     function getCourseStartTime(course) {
@@ -278,12 +286,15 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     let unsubscribeCalendarEvents = null;
     let unsubscribeCalendarTasks = null;
     let unsubscribeLastSync = null;
+    let unsubscribeInstructors = null;
     let lastLocalSaveTimestamp = null;
     let lastAppliedRemoteSync = localStorage.getItem('lastAppliedRemoteSync') || null;
     let lastAppliedCoursesSignature = '';
     let lastAppliedResponsiblesSignature = '';
     let lastAppliedChecklistsSignature = '';
+    let lastAppliedInstructorsSignature = '';
     let saveDebounceTimer = null;
+    let renderAllTimer = null;
     let authStateListenerStarted = false;
     let syncPollInterval = null;
     let realtimeListenersActive = false;
@@ -394,8 +405,68 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return JSON.stringify(normalizeAllCourses(courseList));
     }
 
+    function scheduleRenderAll() {
+      clearTimeout(renderAllTimer);
+      renderAllTimer = setTimeout(() => renderAll(), 60);
+    }
+
+    function applyInstructorsFromRemote(data, source = 'remote') {
+      const normalized = data && typeof data === 'object' ? data : {};
+      const sig = JSON.stringify(normalized);
+      if (sig === lastAppliedInstructorsSignature) return false;
+
+      lastAppliedInstructorsSignature = sig;
+      window.instructors = normalized;
+      localStorage.setItem('instructors_data', sig);
+      if (source === 'listener') {
+        console.log('🔄 Instrutores sincronizados em tempo real');
+      }
+      if (typeof window.refreshInstructorsUI === 'function') {
+        window.refreshInstructorsUI();
+      }
+      return true;
+    }
+
+    async function loadInstructorsFromFirebase() {
+      if (!window.database || !window.firebaseModules || !isLoggedIn) return;
+      try {
+        const { ref, get } = window.firebaseModules;
+        const snap = await get(ref(window.database, 'instructors'));
+        applyInstructorsFromRemote(snap.exists() ? (snap.val() || {}) : {}, 'poll');
+      } catch (e) {
+        console.warn('Erro ao carregar instrutores do Firebase:', e);
+      }
+    }
+
+    async function saveInstructorsToFirebase(data) {
+      const payload = data || window.instructors || {};
+      const sig = JSON.stringify(payload);
+      window.instructors = payload;
+      lastAppliedInstructorsSignature = sig;
+      localStorage.setItem('instructors_data', sig);
+
+      if (!window.database || !window.firebaseModules) {
+        if (typeof showToast === 'function') {
+          showToast('Salvo localmente. Sincronizará quando o Firebase estiver disponível.', 'info');
+        }
+        return;
+      }
+
+      try {
+        const { ref, set } = window.firebaseModules;
+        await set(ref(window.database, 'instructors'), payload);
+        await bumpLastSync();
+      } catch (e) {
+        console.warn('Erro ao salvar instrutores:', e);
+        if (typeof showToast === 'function') {
+          showToast('Erro ao sincronizar instrutor. Dados salvos localmente.', 'error');
+        }
+      }
+    }
+
     function applyCoursesFromRemote(rawCourses, source = 'remote') {
       const normalized = coursesFromFirebaseValue(rawCourses);
+      normalized.forEach((course) => updateCourseStatusAutomatically(course));
       const signature = serializeCoursesForSync(normalized);
       if (signature === lastAppliedCoursesSignature) return false;
 
@@ -404,7 +475,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       filteredCourses = [...courses];
       localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
       updateFilters();
-      renderAll();
+      scheduleRenderAll();
       console.log(`🔄 Cursos sincronizados (${source})`);
       return true;
     }
@@ -417,7 +488,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       lastAppliedResponsiblesSignature = signature;
       lotResponsibles = data;
       localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
-      renderAll();
+      scheduleRenderAll();
       console.log(`🔄 Responsáveis sincronizados (${source})`);
       return true;
     }
@@ -430,7 +501,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       lastAppliedChecklistsSignature = signature;
       courseChecklists = data;
       localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
-      renderAll();
+      scheduleRenderAll();
+      renderTarefas();
       if (currentTarefasModalCourseId) {
         renderTarefasChecklistModalContent(currentTarefasModalCourseId);
       }
@@ -558,8 +630,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return saveToRealtimeDatabase();
     }
 
+
     async function loadFromRealtimeDatabase() {
-      // Esta função agora só sincroniza com Firebase, não bloqueia a UI
       if (!window.database || !window.firebaseModules) {
         console.warn('Realtime Database não disponível, usando localStorage');
         return;
@@ -571,40 +643,35 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       try {
         const db = window.database;
         const { ref, get } = window.firebaseModules;
-        
-        // Try to load courses from Realtime Database with timeout
-        const coursesPromise = get(ref(db, 'courses'));
-        const coursesTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout ao carregar cursos')), 10000)
-        );
-        
-        const coursesSnapshot = await Promise.race([coursesPromise, coursesTimeout]);
-        
+        const withTimeout = (promise, label, ms = 8000) => Promise.race([
+          promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout ao carregar ${label}`)), ms)),
+        ]);
+
+        const [coursesSnapshot, responsiblesSnapshot, checklistsSnapshot] = await Promise.all([
+          withTimeout(get(ref(db, 'courses')), 'cursos'),
+          withTimeout(get(ref(db, 'responsibles')), 'responsáveis'),
+          withTimeout(get(ref(db, 'courseChecklists')), 'checklists').catch((e) => {
+            console.warn('Erro ao carregar checklists:', e);
+            return null;
+          }),
+        ]);
+
         if (coursesSnapshot.exists()) {
           const dbCourses = coursesSnapshot.val();
           const normalized = coursesFromFirebaseValue(dbCourses);
           if (normalized.length > 0) {
+            normalized.forEach((course) => updateCourseStatusAutomatically(course));
             courses = normalized;
             lastAppliedCoursesSignature = serializeCoursesForSync(courses);
             localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
           }
-        } else {
-          // No data in Realtime Database, migrate from localStorage if exists
-          if (localCourses.length > 0 && !dataMigrationDone) {
-            console.log('Migrando dados do localStorage para Realtime Database...');
-            await saveToRealtimeDatabase();
-            dataMigrationDone = true;
-          }
+        } else if (localCourses.length > 0 && !dataMigrationDone) {
+          console.log('Migrando dados do localStorage para Realtime Database...');
+          await saveToRealtimeDatabase();
+          dataMigrationDone = true;
         }
-        
-        // Try to load responsibles from Realtime Database with timeout
-        const responsiblesPromise = get(ref(db, 'responsibles'));
-        const responsiblesTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout ao carregar responsáveis')), 10000)
-        );
-        
-        const responsiblesSnapshot = await Promise.race([responsiblesPromise, responsiblesTimeout]);
-        
+
         if (responsiblesSnapshot.exists()) {
           const dbResponsibles = responsiblesSnapshot.val() || {};
           if (Object.keys(dbResponsibles).length > 0) {
@@ -612,34 +679,26 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             lastAppliedResponsiblesSignature = JSON.stringify(lotResponsibles);
             localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
           }
-        } else {
-          // No data in Realtime Database, migrate from localStorage if exists
-          if (Object.keys(localResponsibles).length > 0 && !dataMigrationDone) {
-            await saveToRealtimeDatabase();
-            dataMigrationDone = true;
-          }
+        } else if (Object.keys(localResponsibles).length > 0 && !dataMigrationDone) {
+          await saveToRealtimeDatabase();
+          dataMigrationDone = true;
         }
-        
-        // Try to load course checklists
-        try {
-          const checklistsSnapshot = await get(ref(db, 'courseChecklists'));
-          if (checklistsSnapshot.exists()) {
-            courseChecklists = checklistsSnapshot.val() || {};
-            lastAppliedChecklistsSignature = JSON.stringify(courseChecklists);
-            localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
-          }
-        } catch (checklistError) {
-          console.warn('Erro ao carregar checklists:', checklistError);
+
+        if (checklistsSnapshot && checklistsSnapshot.exists()) {
+          courseChecklists = checklistsSnapshot.val() || {};
+          lastAppliedChecklistsSignature = JSON.stringify(courseChecklists);
+          localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
         }
-        
+
+        if (typeof loadInstructorsFromFirebase === 'function') {
+          await loadInstructorsFromFirebase();
+        }
+
         filteredCourses = [...courses];
         console.log('✅ Dados sincronizados do Realtime Database com sucesso');
-        
-        // Atualizar UI se houver mudanças
-      renderAll();
+        renderAll();
       } catch (error) {
         console.warn('⚠️ Erro ao sincronizar com Realtime Database (usando localStorage):', error.code || error.message);
-        // Dados do localStorage já estão sendo usados, não precisa fazer nada
       }
     }
 
@@ -651,6 +710,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         unsubscribeCalendarEvents,
         unsubscribeCalendarTasks,
         unsubscribeLastSync,
+        unsubscribeInstructors,
       ].forEach((unsubscribe) => {
         if (typeof unsubscribe === 'function') unsubscribe();
       });
@@ -661,6 +721,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       unsubscribeCalendarEvents = null;
       unsubscribeCalendarTasks = null;
       unsubscribeLastSync = null;
+      unsubscribeInstructors = null;
       realtimeListenersActive = false;
     }
 
@@ -723,22 +784,19 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       try {
         unsubscribeCourses = onValue(ref(db, 'courses'), (snapshot) => {
-          if (!snapshot.exists()) return;
-          applyCoursesFromRemote(snapshot.val(), 'listener');
+          applyCoursesFromRemote(snapshot.exists() ? snapshot.val() : {}, 'listener');
         }, (error) => {
           console.error('❌ Erro listener courses:', error.code || error.message);
         });
 
         unsubscribeResponsibles = onValue(ref(db, 'responsibles'), (snapshot) => {
-          if (!snapshot.exists()) return;
-          applyResponsiblesFromRemote(snapshot.val(), 'listener');
+          applyResponsiblesFromRemote(snapshot.exists() ? snapshot.val() : {}, 'listener');
         }, (error) => {
           console.error('❌ Erro listener responsibles:', error.code || error.message);
         });
 
         unsubscribeChecklists = onValue(ref(db, 'courseChecklists'), (snapshot) => {
-          if (!snapshot.exists()) return;
-          applyChecklistsFromRemote(snapshot.val(), 'listener');
+          applyChecklistsFromRemote(snapshot.exists() ? snapshot.val() : {}, 'listener');
         }, (error) => {
           console.error('❌ Erro listener checklists:', error.code || error.message);
         });
@@ -749,7 +807,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (JSON.stringify(calendarEvents) === JSON.stringify(newEvents)) return;
           calendarEvents = Array.isArray(newEvents) ? newEvents : [];
           localStorage.setItem(STORAGE_KEY_CALENDAR_EVENTS, JSON.stringify(calendarEvents));
-          renderAll();
+          scheduleRenderAll();
         });
 
         unsubscribeCalendarTasks = onValue(ref(db, 'calendarTasks'), (snapshot) => {
@@ -758,7 +816,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (JSON.stringify(calendarTasks) === JSON.stringify(newTasks)) return;
           calendarTasks = Array.isArray(newTasks) ? newTasks : [];
           localStorage.setItem(STORAGE_KEY_CALENDAR_TASKS, JSON.stringify(calendarTasks));
-          renderAll();
+          scheduleRenderAll();
         });
 
         unsubscribeLastSync = onValue(ref(db, 'lastSync'), (snapshot) => {
@@ -772,9 +830,16 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (remote === lastAppliedRemoteSync) return;
           lastAppliedRemoteSync = remote;
           localStorage.setItem('lastAppliedRemoteSync', remote);
-          pollRemoteSync(true);
+          loadInstructorsFromFirebase();
         }, (error) => {
           console.error('❌ Erro listener lastSync:', error.code || error.message);
+        });
+
+        unsubscribeInstructors = onValue(ref(db, 'instructors'), (snapshot) => {
+          const data = snapshot.exists() ? (snapshot.val() || {}) : {};
+          applyInstructorsFromRemote(data, 'listener');
+        }, (error) => {
+          console.error('❌ Erro listener instructors:', error.code || error.message);
         });
 
         realtimeListenersActive = true;
@@ -792,7 +857,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
 
       try {
-        const idTokenResult = await user.getIdTokenResult(true);
+        const idTokenResult = await user.getIdTokenResult();
         userRole = idTokenResult.claims.role || 'user';
 
         if (!idTokenResult.claims.role) {
@@ -811,23 +876,22 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
     }
 
-    async function handleAuthenticatedSync(user) {
+    function handleAuthenticatedSync(user) {
       if (!user || !window.database || !window.firebaseModules) return;
-
-      try {
-        await user.getIdToken(true);
-      } catch (error) {
-        console.warn('Não foi possível renovar token de autenticação:', error);
-      }
 
       if (window.firebaseModules.goOnline) {
         window.firebaseModules.goOnline(window.database);
       }
 
       setupRealtimeListeners();
-      await refreshRemoteData();
-      if (typeof setupInstructorsListener === 'function') setupInstructorsListener();
-      checkAndUpdateAllCourseStatuses();
+      refreshRemoteData()
+        .then(() => {
+          checkAndUpdateAllCourseStatuses({ persist: false });
+          renderAll();
+        })
+        .catch((error) => {
+          console.warn('Erro na sincronização pós-login:', error);
+        });
     }
 
     function initAuthAndSync() {
@@ -840,14 +904,15 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
         if (user) {
           await applyUserRoleFromToken(user);
-          await handleAuthenticatedSync(user);
+          updateUIForLoginStatus();
+          renderAll();
+          handleAuthenticatedSync(user);
         } else {
           userRole = 'user';
           teardownRealtimeListeners();
+          updateUIForLoginStatus();
+          renderAll();
         }
-
-        updateUIForLoginStatus();
-        renderAll();
       });
 
       return true;
@@ -861,6 +926,17 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
 
       initAuthAndSync();
+
+      const existingUser = window.firebaseAuth.currentUser;
+      if (existingUser) {
+        isLoggedIn = true;
+        currentUser = existingUser;
+        applyUserRoleFromToken(existingUser).then(() => {
+          updateUIForLoginStatus();
+          if (!realtimeListenersActive) setupRealtimeListeners();
+          renderAll();
+        });
+      }
     };
 
     async function checkFirebaseAuth() {
@@ -1028,9 +1104,16 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         }
 
         // Set persistence based on remember checkbox
-        const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-        const persistence = remember ? browserLocalPersistence : browserSessionPersistence;
-        await setPersistence(window.firebaseAuth, persistence);
+        if (window.firebaseModules.setPersistence) {
+          const persistence = remember
+            ? window.firebaseModules.browserLocalPersistence
+            : window.firebaseModules.browserSessionPersistence;
+          await window.firebaseModules.setPersistence(window.firebaseAuth, persistence);
+        } else {
+          const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+          const persistence = remember ? browserLocalPersistence : browserSessionPersistence;
+          await setPersistence(window.firebaseAuth, persistence);
+        }
 
         errorDiv.textContent = 'Entrando...';
         errorDiv.classList.remove('hidden');
@@ -1039,6 +1122,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
         const userCredential = await window.firebaseModules.signInWithEmailAndPassword(window.firebaseAuth, email, password);
         currentUser = userCredential.user;
+        isLoggedIn = true;
         
         // Obter custom claims do token (se configurado no Firebase)
         try {
@@ -1058,6 +1142,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         }
         
         logAction('Login', { email: email, role: userRole });
+
+        updateUIForLoginStatus();
+        renderAll();
         
         // Esconder tela de carregamento
         const loginLoading = document.getElementById('login-loading');
@@ -1226,7 +1313,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (!syncPollInterval) {
         syncPollInterval = setInterval(() => {
           pollRemoteSync();
-        }, 3000);
+        }, 2000);
       }
 
       setInterval(() => {
@@ -1272,6 +1359,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           window.firebaseModules.goOnline(window.database);
         }
 
+        if (!realtimeListenersActive) {
+          setupRealtimeListeners();
+        }
+        loadInstructorsFromFirebase();
         pollRemoteSync(true);
       });
     }
@@ -1290,21 +1381,31 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
         courseChecklists = JSON.parse(localStorage.getItem(STORAGE_KEY_CHECKLISTS)) || {};
         courses = dedupeCoursesById(localCourses);
+        try {
+          window.instructors = JSON.parse(localStorage.getItem('instructors_data')) || {};
+          lastAppliedInstructorsSignature = JSON.stringify(window.instructors);
+        } catch (_) {
+          window.instructors = {};
+          lastAppliedInstructorsSignature = '{}';
+        }
+        checkAndUpdateAllCourseStatuses({ persist: false });
         lastAppliedCoursesSignature = serializeCoursesForSync(courses);
         lotResponsibles = localResponsibles && typeof localResponsibles === 'object' ? localResponsibles : {};
         filteredCourses = [...courses];
-        updateFilters();
-        renderAll();
-        updateUIForLoginStatus();
-        if (!location.hash || location.hash === '#instructors' || location.hash.startsWith('#instructor/')) {
-          location.replace('#cronograma');
-        }
-        switchTab('cronograma');
+        dismissLoading();
+        requestAnimationFrame(() => {
+          updateFilters();
+          renderAll();
+          updateUIForLoginStatus();
+          if (!location.hash || location.hash === '#instructors' || location.hash.startsWith('#instructor/')) {
+            location.replace('#cronograma');
+          }
+          switchTab('cronograma');
+        });
       } catch (error) {
         console.error('Erro ao carregar do localStorage:', error);
-        if (typeof showToast === 'function') showToast('Erro ao carregar dados. Tente recarregar a página.', 'error');
-      } finally {
         dismissLoading();
+        if (typeof showToast === 'function') showToast('Erro ao carregar dados. Tente recarregar a página.', 'error');
       }
 
       setupVisibilitySync();
@@ -6667,7 +6768,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
     
     // Função para verificar e atualizar status de todos os cursos
-    function checkAndUpdateAllCourseStatuses() {
+    function checkAndUpdateAllCourseStatuses(options = {}) {
+      const persist = options.persist !== false;
       let hasChanges = false;
       courses.forEach(course => {
         const hadTurmaFormada = isTurmaFechada(course);
@@ -6679,10 +6781,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           syncCourseToFiltered(course.id);
         }
       });
-      
-      // Salvar alterações se houver
+
       if (hasChanges) {
-        saveToStorage();
+        if (persist) saveToStorage();
         renderActionCards();
         renderStats();
         renderLotSections();
@@ -8214,6 +8315,14 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     window.openLoginModal = openLoginModal;
     window.showToast = showToast;
     window.switchTab = switchTab;
+    window.bumpLastSync = bumpLastSync;
+    window.renderAll = renderAll;
+    window.saveInstructorsToFirebase = saveInstructorsToFirebase;
+    window.applyInstructorsFromRemote = applyInstructorsFromRemote;
+    window.saveCoursePatch = saveCoursePatch;
+    window.saveToStorage = saveToStorage;
+    window.__iacIsLoggedIn = () => isLoggedIn;
+    window.__iacGetCourses = () => courses;
 
     function bindAddInstructorButton() {
       if (window._instructorBtnBound) return;
