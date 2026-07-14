@@ -426,6 +426,7 @@ let instructorCourseSearchOpen = false;
   /* open/close modal: instructors-boot.js */
 
   window.saveInstructor = async function saveInstructor() {
+    if (!instructorEditGuard()) return;
     const nome = document.getElementById('instructor-nome')?.value.trim() || '';
     if (!nome) {
       if (typeof showToast === 'function') showToast('Informe o nome do instrutor.', 'error');

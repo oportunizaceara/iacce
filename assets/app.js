@@ -438,6 +438,28 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
     }
 
+    async function ensureAuthenticatedForWrite() {
+      if (!window.firebaseAuth || !window.firebaseModules) {
+        showToast('Firebase não disponível. Dados salvos apenas localmente.', 'warning');
+        return false;
+      }
+      const user = window.firebaseAuth.currentUser;
+      if (!user || !isLoggedIn) {
+        openLoginModal();
+        showToast('Faça login para sincronizar na nuvem.', 'error');
+        return false;
+      }
+      try {
+        await user.getIdToken();
+        return true;
+      } catch (error) {
+        console.warn('Erro ao validar autenticação:', error);
+        showToast('Sessão expirada. Faça login novamente.', 'error');
+        openLoginModal();
+        return false;
+      }
+    }
+
     async function saveInstructorsToFirebase(data) {
       const payload = data || window.instructors || {};
       const sig = JSON.stringify(payload);
@@ -446,11 +468,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       localStorage.setItem('instructors_data', sig);
 
       if (!window.database || !window.firebaseModules) {
-        if (typeof showToast === 'function') {
-          showToast('Salvo localmente. Sincronizará quando o Firebase estiver disponível.', 'info');
-        }
+        showToast('Salvo localmente. Sincronizará quando o Firebase estiver disponível.', 'info');
         return;
       }
+
+      const canWrite = await ensureAuthenticatedForWrite();
+      if (!canWrite) return;
 
       try {
         const { ref, set } = window.firebaseModules;
@@ -458,7 +481,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         await bumpLastSync();
       } catch (e) {
         console.warn('Erro ao salvar instrutores:', e);
-        if (typeof showToast === 'function') {
+        if (e.code === 'PERMISSION_DENIED' || (e.message && e.message.includes('PERMISSION_DENIED'))) {
+          showToast('Sem permissão no Firebase. Faça login e publique as regras de "instructors" no Console.', 'error');
+        } else {
           showToast('Erro ao sincronizar instrutor. Dados salvos localmente.', 'error');
         }
       }
@@ -960,7 +985,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       // Adicionar tooltip e desabilitar botões para não-admin
       document.querySelectorAll('button.admin-only, input.admin-only, select.admin-only').forEach(el => {
-        if (el.id === 'btn-add-instructor') return;
         if (!isLoggedIn || userRole !== 'admin') {
           el.disabled = true;
           el.title = 'Apenas administradores podem executar esta ação';
