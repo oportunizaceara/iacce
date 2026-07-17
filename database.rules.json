@@ -43,6 +43,10 @@
     "instructors": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "perfilLote": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }
