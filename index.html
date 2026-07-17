@@ -25,7 +25,7 @@
   <title>IAC - Instituto de Arte e Cidadania do Ceará</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
-  <link rel="stylesheet" href="assets/app.css?v=38">
+  <link rel="stylesheet" href="assets/app.css?v=39">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -370,9 +370,6 @@
         </div>
       </div>
 
-      <!-- Turmas prioritárias (sempre no topo) -->
-      <div id="cronograma-priority" class="hidden mb-6 space-y-4"></div>
-
       <!-- Barra de Pesquisa e Controles -->
       <div class="card-secondary rounded-[20px] p-4 mb-6">
         <div class="flex items-center gap-3 mb-4">
@@ -410,6 +407,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Turmas prioritárias -->
+      <div id="cronograma-priority" class="hidden mb-6 space-y-4"></div>
 
       <!-- Cards em Grid (4 colunas) -->
       <div id="cronograma-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1832,9 +1832,9 @@
       window.dispatchEvent(new Event('firebase-ready'));
     }).catch(error => console.error('Erro ao carregar Firebase:', error));
   </script>
-  <script defer src="assets/instructors-boot.js?v=38"></script>
-  <script defer src="assets/app.js?v=38"></script>
-  <script defer src="assets/views.js?v=38"></script>
+  <script defer src="assets/instructors-boot.js?v=39"></script>
+  <script defer src="assets/app.js?v=39"></script>
+  <script defer src="assets/views.js?v=39"></script>
 </body>
 </html>
 
