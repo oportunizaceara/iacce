@@ -115,7 +115,7 @@
       };
     }
   </script>
-  <link rel="stylesheet" href="assets/app.css?v=36">
+  <link rel="stylesheet" href="assets/app.css?v=37">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -516,7 +516,7 @@
     <main id="content-tarefas" class="container mx-auto px-2 md:px-4 py-6 space-y-6 hidden">
       <div class="mb-2">
         <h2 class="text-3xl font-bold text-foreground mb-2" style="letter-spacing: -0.02em;">Tarefas</h2>
-        <p class="text-muted-foreground">Checklist de preparação e acompanhamento das turmas que iniciam em breve ou estão em andamento</p>
+        <p class="text-muted-foreground">Checklist de preparação e acompanhamento de todas as turmas ativas</p>
       </div>
 
       <div class="card-secondary rounded-[20px] p-4">
@@ -546,6 +546,14 @@
           </h3>
           <div id="tarefas-em-breve-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
         </div>
+
+        <div id="tarefas-outras-section" class="space-y-4">
+          <h3 class="text-xl font-semibold text-foreground flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#8e8e93]"></span>
+            Demais turmas
+          </h3>
+          <div id="tarefas-outras-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        </div>
       </div>
 
       <div id="tarefas-stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
@@ -563,7 +571,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
         <p class="text-lg font-medium text-foreground mb-1">Nenhuma turma pendente</p>
-        <p class="text-sm text-muted-foreground">Não há turmas em breve ou em andamento no momento.</p>
+        <p class="text-sm text-muted-foreground">Não há turmas ativas no momento.</p>
       </div>
     </main>
 
@@ -1841,9 +1849,9 @@
     </div>
   </div>
 
-  <script src="assets/instructors-boot.js?v=36"></script>
-  <script src="assets/app.js?v=36"></script>
-  <script src="assets/views.js?v=36"></script>
+  <script src="assets/instructors-boot.js?v=37"></script>
+  <script src="assets/app.js?v=37"></script>
+  <script src="assets/views.js?v=37"></script>
 </body>
 </html>
 
