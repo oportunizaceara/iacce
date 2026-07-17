@@ -1,5 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+    /* Fallback crítico: evita página quebrada antes do Tailwind carregar */
+    .hidden {
+      display: none !important;
+    }
+
+    #app.hidden,
+    #login-modal.hidden,
+    #login-loading.hidden,
+    main.hidden,
+    [id^="content-"].hidden,
+    [id^="import-step-"].hidden {
+      display: none !important;
+    }
+
+    #app:not(.hidden) {
+      display: block;
+    }
+
+    #initial-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+    }
+
+    body.dark #initial-loading {
+      background: #1c1c1e;
+    }
+
+    #initial-loading.hidden {
+      display: none !important;
+    }
+
+    #initial-loading svg {
+      width: 2.5rem;
+      height: 2.5rem;
+      flex-shrink: 0;
+    }
+
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+
     /* ── iOS Liquid Glass Design Tokens ── */
     :root {
       --lg-blur: 40px;
