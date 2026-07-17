@@ -23,99 +23,9 @@
   <meta name="msapplication-TileColor" content="#007AFF">
   
   <title>IAC - Instituto de Arte e Cidadania do Ceará</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- Firebase SDK -->
-  <script type="module">
-    // Configuração do Firebase Realtime Database
-    const firebaseConfig = {
-      apiKey: "AIzaSyAt-qz3cYHSdlRJkdnFo-nSrby_RbWbZMg",
-      authDomain: "cursos-17733.firebaseapp.com",
-      databaseURL: "https://cursos-17733-default-rtdb.firebaseio.com",
-      projectId: "cursos-17733",
-      storageBucket: "cursos-17733.firebasestorage.app",
-      messagingSenderId: "861985250392",
-      appId: "1:861985250392:web:7ac717acbd678b0684be2d",
-      measurementId: "G-F2WLBYMHW8"
-    };
-
-    // Load Firebase modules
-    Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
-      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'),
-    ]).then(([firebaseApp, firebaseAuth, firebaseDatabase]) => {
-      // Initialize Firebase
-      window.firebaseApp = firebaseApp.initializeApp(firebaseConfig);
-      window.firebaseAuth = firebaseAuth.getAuth(window.firebaseApp);
-      window.database = firebaseDatabase.getDatabase(window.firebaseApp);
-      
-      window.firebaseModules = {
-        signInWithEmailAndPassword: firebaseAuth.signInWithEmailAndPassword,
-        signOut: firebaseAuth.signOut,
-        onAuthStateChanged: firebaseAuth.onAuthStateChanged,
-        setPersistence: firebaseAuth.setPersistence,
-        browserLocalPersistence: firebaseAuth.browserLocalPersistence,
-        browserSessionPersistence: firebaseAuth.browserSessionPersistence,
-        ref: firebaseDatabase.ref,
-        get: firebaseDatabase.get,
-        set: firebaseDatabase.set,
-        onValue: firebaseDatabase.onValue,
-        off: firebaseDatabase.off,
-        goOnline: firebaseDatabase.goOnline,
-        update: firebaseDatabase.update
-      };
-      
-      // Trigger ready event
-      window.dispatchEvent(new Event('firebase-ready'));
-      if (typeof window.bootFirebaseSync === 'function') {
-        window.bootFirebaseSync();
-      }
-    }).catch(error => {
-      console.error('Erro ao carregar Firebase:', error);
-    });
-  </script>
-  <script>
-    if (typeof tailwind !== 'undefined') {
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              background: 'transparent',
-              foreground: '#1d1d1f',
-              card: 'rgba(255, 255, 255, 0.52)',
-              'card-foreground': '#1d1d1f',
-              primary: '#007AFF',
-              'primary-foreground': '#ffffff',
-              secondary: 'rgba(120, 120, 128, 0.16)',
-              'secondary-foreground': '#1d1d1f',
-              muted: 'rgba(120, 120, 128, 0.16)',
-              'muted-foreground': '#8e8e93',
-              border: 'rgba(255, 255, 255, 0.45)',
-              input: 'rgba(255, 255, 255, 0.55)',
-              ring: '#007AFF',
-            },
-            fontFamily: {
-              sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
-            },
-            borderRadius: {
-              'ios': '20px',
-              'ios-sm': '12px',
-              'ios-lg': '28px',
-            },
-            boxShadow: {
-              'ios': '0 2px 10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1)',
-              'ios-lg': '0 10px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1)',
-              'ios-card': '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)',
-            }
-          }
-        }
-      };
-    }
-  </script>
-  <link rel="stylesheet" href="assets/app.css?v=37">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="stylesheet" href="assets/app.css?v=38">
 </head>
 <body class="min-h-screen">
   <!-- Tela de Carregamento Inicial -->
@@ -1849,9 +1759,82 @@
     </div>
   </div>
 
-  <script src="assets/instructors-boot.js?v=37"></script>
-  <script src="assets/app.js?v=37"></script>
-  <script src="assets/views.js?v=37"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              background: 'transparent',
+              foreground: '#1d1d1f',
+              card: 'rgba(255, 255, 255, 0.52)',
+              'card-foreground': '#1d1d1f',
+              primary: '#007AFF',
+              'primary-foreground': '#ffffff',
+              secondary: 'rgba(120, 120, 128, 0.16)',
+              'secondary-foreground': '#1d1d1f',
+              muted: 'rgba(120, 120, 128, 0.16)',
+              'muted-foreground': '#8e8e93',
+              border: 'rgba(255, 255, 255, 0.45)',
+              input: 'rgba(255, 255, 255, 0.55)',
+              ring: '#007AFF',
+            },
+            fontFamily: {
+              sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+            },
+            borderRadius: { 'ios': '20px', 'ios-sm': '12px', 'ios-lg': '28px' },
+            boxShadow: {
+              'ios': '0 2px 10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1)',
+              'ios-lg': '0 10px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1)',
+              'ios-card': '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)',
+            }
+          }
+        }
+      };
+    }
+  </script>
+  <script type="module">
+    const firebaseConfig = {
+      apiKey: "AIzaSyAt-qz3cYHSdlRJkdnFo-nSrby_RbWbZMg",
+      authDomain: "cursos-17733.firebaseapp.com",
+      databaseURL: "https://cursos-17733-default-rtdb.firebaseio.com",
+      projectId: "cursos-17733",
+      storageBucket: "cursos-17733.firebasestorage.app",
+      messagingSenderId: "861985250392",
+      appId: "1:861985250392:web:7ac717acbd678b0684be2d",
+      measurementId: "G-F2WLBYMHW8"
+    };
+    Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'),
+    ]).then(([firebaseApp, firebaseAuth, firebaseDatabase]) => {
+      window.firebaseApp = firebaseApp.initializeApp(firebaseConfig);
+      window.firebaseAuth = firebaseAuth.getAuth(window.firebaseApp);
+      window.database = firebaseDatabase.getDatabase(window.firebaseApp);
+      window.firebaseModules = {
+        signInWithEmailAndPassword: firebaseAuth.signInWithEmailAndPassword,
+        signOut: firebaseAuth.signOut,
+        onAuthStateChanged: firebaseAuth.onAuthStateChanged,
+        setPersistence: firebaseAuth.setPersistence,
+        browserLocalPersistence: firebaseAuth.browserLocalPersistence,
+        browserSessionPersistence: firebaseAuth.browserSessionPersistence,
+        ref: firebaseDatabase.ref,
+        get: firebaseDatabase.get,
+        set: firebaseDatabase.set,
+        onValue: firebaseDatabase.onValue,
+        off: firebaseDatabase.off,
+        goOnline: firebaseDatabase.goOnline,
+        update: firebaseDatabase.update
+      };
+      window.dispatchEvent(new Event('firebase-ready'));
+    }).catch(error => console.error('Erro ao carregar Firebase:', error));
+  </script>
+  <script defer src="assets/instructors-boot.js?v=38"></script>
+  <script defer src="assets/app.js?v=38"></script>
+  <script defer src="assets/views.js?v=38"></script>
 </body>
 </html>
 

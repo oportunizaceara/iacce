@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iac-v37';
+const CACHE_NAME = 'iac-v38';
 const urlsToCache = [
   './',
   './index.html',
