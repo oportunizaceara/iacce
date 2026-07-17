@@ -1,17 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
     /* Fallback crítico: evita página quebrada antes do Tailwind carregar */
-    .hidden {
-      display: none !important;
-    }
-
+    .hidden:not([class*="md:"]):not([class*="sm:"]):not([class*="lg:"]):not([class*="xl:"]),
     #app.hidden,
     #login-modal.hidden,
     #login-loading.hidden,
     main.hidden,
     [id^="content-"].hidden,
-    [id^="import-step-"].hidden {
+    [id^="import-step-"].hidden,
+    [id$="-modal"].hidden {
       display: none !important;
+    }
+
+    @media (min-width: 768px) {
+      .header-tabs,
+      header .header-search-wrap {
+        display: flex !important;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .header-tabs,
+      header .header-search-wrap {
+        display: none !important;
+      }
     }
 
     #app:not(.hidden) {

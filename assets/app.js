@@ -1111,6 +1111,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             }
             return;
           }
+          if (el.matches('.tab-btn, .header-tabs, .header-search-wrap')) {
+            el.classList.remove('hidden');
+            el.style.display = '';
+            return;
+          }
           if (userRole === 'admin') {
           el.classList.remove('hidden');
           el.style.display = '';
@@ -1129,7 +1134,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         if (deleteLotSection) deleteLotSection.style.display = userRole === 'admin' ? 'block' : 'none';
         
         // Update mobile menu
-        if (tabSettingsMobile) tabSettingsMobile.classList.toggle('hidden', userRole !== 'admin');
         if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
         if (loginBtnMobile) loginBtnMobile.classList.add('hidden');
       } else {
@@ -1138,6 +1142,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (el.matches('main[id^="content-"]')) {
             el.classList.add('hidden');
             el.style.display = 'none';
+            return;
+          }
+          if (el.matches('.tab-btn, .header-tabs, .header-search-wrap, header .header-tabs')) {
             return;
           }
           el.classList.add('hidden');
@@ -1153,7 +1160,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         if (deleteLotSection) deleteLotSection.style.display = 'none';
         
         // Update mobile menu
-        if (tabSettingsMobile) tabSettingsMobile.classList.add('hidden');
         if (logoutBtnMobile) logoutBtnMobile.classList.add('hidden');
         if (loginBtnMobile) loginBtnMobile.classList.remove('hidden');
       }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iac-v41';
+const CACHE_NAME = 'iac-v42';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
