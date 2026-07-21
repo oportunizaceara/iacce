@@ -1,10 +1,16 @@
 {
-  "name": "plataforma-csf",
+  "name": "perfil-de-lote",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build:css": "tailwindcss -i ./assets/tailwind-input.css -o ./assets/tailwind.css --minify"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^11.6.0"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.17"
+    "vite": "^6.2.0"
   }
 }
