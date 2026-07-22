@@ -62,13 +62,13 @@ let instructorCourseSearchOpen = false;
       return;
     }
     const tab = lastActiveTab || 'cronograma';
-    ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
+    ['dashboard', 'cronograma', 'perfillote', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
       setTabPanelVisible(document.getElementById(`content-${name}`), name === tab);
     });
   }
 
   function hideAllPages() {
-    ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
+    ['dashboard', 'cronograma', 'perfillote', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
       const el = document.getElementById(`content-${name}`);
       if (el) el.classList.add('hidden');
     });

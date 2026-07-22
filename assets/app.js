@@ -2107,7 +2107,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (tab === 'calendar') tab = 'cronograma';
       activeTabCache = tab;
       // Remove active de todas as tabs
-      const tabs = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'course', 'instructor'];
+      const tabs = ['dashboard', 'cronograma', 'perfillote', 'tarefas', 'settings', 'instructors', 'course', 'instructor'];
       tabs.forEach(t => {
         const tabEl = document.getElementById(`tab-${t}`);
         const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -2155,6 +2155,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           renderTarefas();
         } else if (tab === 'instructors' && typeof renderInstructorsList === 'function') {
           renderInstructorsList();
+        } else if (tab === 'perfillote' && window.PerfilLote && typeof window.PerfilLote.render === 'function') {
+          window.PerfilLote.render();
         }
       }
     }
