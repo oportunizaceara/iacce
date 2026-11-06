@@ -1,7 +1,7 @@
 /* IAC - Páginas dedicadas, instrutores e melhorias visuais */
 const STORAGE_KEY_INSTRUCTORS = 'instructors_data';
 const STORAGE_KEY_WIDGETS = 'dashboard_widgets_order';
-const DEFAULT_WIDGETS = ['summary', 'actions', 'stats', 'filters', 'lots'];
+const DEFAULT_WIDGETS = ['summary', 'actions', 'filters', 'indicators', 'lots'];
 
 function iacIsLoggedIn() {
   if (typeof window.__iacIsLoggedIn === 'function') return window.__iacIsLoggedIn();
@@ -23,7 +23,7 @@ function getInstructorsData() {
 let currentCoursePageId = null;
 let currentInstructorPageId = null;
 let currentCourseSection = 'overview';
-let lastActiveTab = 'cronograma';
+let lastActiveTab = 'dashboard';
 let instructorCourseSearchOpen = false;
 
   function instructorEditGuard() {
@@ -61,14 +61,14 @@ let instructorCourseSearchOpen = false;
       ensureInstructorPageVisible();
       return;
     }
-    const tab = lastActiveTab || 'cronograma';
-    ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
+    const tab = lastActiveTab || 'dashboard';
+    ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
       setTabPanelVisible(document.getElementById(`content-${name}`), name === tab);
     });
   }
 
   function hideAllPages() {
-    ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor'].forEach((name) => {
+    ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
       const el = document.getElementById(`content-${name}`);
       if (el) el.classList.add('hidden');
     });
@@ -114,7 +114,7 @@ let instructorCourseSearchOpen = false;
   };
 
   function setActiveTabButton(tab) {
-    const tabs = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors'];
+    const tabs = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'];
     tabs.forEach((t) => {
       const tabEl = document.getElementById(`tab-${t}`);
       const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -621,8 +621,19 @@ let instructorCourseSearchOpen = false;
   /* ── Dashboard widgets ── */
   function getWidgetOrder() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_WIDGETS)) || DEFAULT_WIDGETS;
-    } catch (_) { return DEFAULT_WIDGETS; }
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_WIDGETS)) || DEFAULT_WIDGETS.slice();
+      const order = Array.isArray(stored) ? stored.slice() : DEFAULT_WIDGETS.slice();
+      DEFAULT_WIDGETS.forEach((key) => {
+        if (!order.includes(key)) order.push(key);
+      });
+      const filtersAt = order.indexOf('filters');
+      const indicatorsAt = order.indexOf('indicators');
+      if (filtersAt > indicatorsAt && indicatorsAt >= 0) {
+        order.splice(filtersAt, 1);
+        order.splice(indicatorsAt, 0, 'filters');
+      }
+      return order;
+    } catch (_) { return DEFAULT_WIDGETS.slice(); }
   }
 
   window.reorderDashboardWidget = function reorderDashboardWidget(id, direction) {
@@ -643,6 +654,7 @@ let instructorCourseSearchOpen = false;
       summary: document.getElementById('dashboard-widgets-bar'),
       actions: document.getElementById('action-cards')?.parentElement === dashboard ? document.getElementById('action-cards') : document.getElementById('action-cards'),
       stats: document.getElementById('stats-cards'),
+      indicators: document.getElementById('execution-indicators'),
       filters: document.getElementById('dashboard-filters'),
       lots: document.getElementById('lot-sections'),
     };
@@ -677,7 +689,7 @@ let instructorCourseSearchOpen = false;
       if (typeof window.switchTab === 'function') window.switchTab('cronograma');
       return;
     }
-    if (['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors'].includes(hash)) {
+    if (['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(hash)) {
       closeCourseModal();
       currentCoursePageId = null;
       currentInstructorPageId = null;
@@ -724,6 +736,11 @@ let instructorCourseSearchOpen = false;
           setTabPanelVisible(document.getElementById('content-instructors'), true);
           setActiveTabButton('instructors');
           renderInstructorsList();
+        }
+        if (tab === 'perfillote' && window.PerfilLote) {
+          setTabPanelVisible(document.getElementById('content-perfillote'), true);
+          setActiveTabButton('perfillote');
+          window.PerfilLote.render();
         }
         if (tab === 'dashboard') applyDashboardWidgetOrder();
       };

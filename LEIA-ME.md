@@ -1,4 +1,20 @@
-# Plataforma CSF — Versão Otimizada (v38)
+# Plataforma IAC — v43
+
+Gestão de cursos do IAC. Esta versão corrige datas no fuso local, grava só o que mudou, protege o banco por papel e adiciona indicadores clicáveis no dashboard.
+
+## Publicar as regras (obrigatório)
+
+No Firebase Console → Realtime Database → Rules, publique o arquivo `database.rules.json`, ou rode `firebase deploy --only database`.
+
+Sem essa publicação, a trava de administrador no servidor ainda não vale. A interface já distingue admin, usuário e visualizador.
+
+## Indicadores
+
+No Dashboard, cada número (total, status, lote, município, concludentes, vencidos, cadastro incompleto e mês) abre a lista dos cursos que formam aquele valor.
+
+## Perfil de Lote
+
+A aba Perfil abre os relatórios de turma. É preciso estar logado para gravar.
 
 Pasta pronta para publicar com **boot mais rápido** e menos trabalho na abertura do site.
 

@@ -1,29 +1,65 @@
-const CACHE_NAME = 'iac-v42';
+const CACHE_NAME = 'iac-v50';
+const ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './assets/app.css',
+  './assets/shell.css',
+  './assets/dates.js',
+  './assets/app.js',
+  './assets/views.js',
+  './assets/indicators.js',
+  './assets/instructors-boot.js',
+  './assets/perfil-lote.js',
+  './assets/perfil-lote.css',
+  './icon-192.png',
+  './icon-512.png'
+];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+      .catch(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => caches.delete(key)))
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
     ).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => response)
-      .catch(() => caches.match(event.request))
+    fetch(request)
+      .then((response) => {
+        if (response && response.ok && response.type === 'basic') {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))
   );
 });
 
 self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'IAC - Notificação', body: event.data ? event.data.text() : 'Nova notificação' };
+  }
   const title = data.title || 'IAC - Notificação';
   const options = {
     body: data.body || 'Nova notificação',

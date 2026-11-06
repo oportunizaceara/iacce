@@ -2,7 +2,8 @@
 module.exports = {
   content: [
     './index.html',
-    './assets/app.js'
+    './assets/**/*.js',
+    './assets/**/*.css'
   ],
   darkMode: 'class',
   theme: {

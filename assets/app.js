@@ -63,7 +63,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if ((status === 'pendente' || status === '') && course.dataInicio) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const dataInicio = new Date(course.dataInicio);
+        const dataInicio = parseCivilDate(course.dataInicio);
         dataInicio.setHours(0, 0, 0, 0);
         return today < dataInicio;
       }
@@ -71,7 +71,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function getCourseStartTime(course) {
-      return course.dataInicio ? new Date(course.dataInicio).getTime() : Number.MAX_SAFE_INTEGER;
+      const date = parseCivilDate(course && course.dataInicio);
+      const time = date.getTime();
+      return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
     }
 
     function getCronogramaPriority(course) {
@@ -144,24 +146,30 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           get(ref(window.database, 'calendarTasks'))
         ]);
         if (eventsSnap.exists()) {
-          const data = eventsSnap.val();
-          if (Array.isArray(data)) {
-            calendarEvents = data;
-            localStorage.setItem(STORAGE_KEY_CALENDAR_EVENTS, JSON.stringify(calendarEvents));
-          }
+          calendarEvents = listFromFirebaseValue(eventsSnap.val());
+          localStorage.setItem(STORAGE_KEY_CALENDAR_EVENTS, JSON.stringify(calendarEvents));
         }
         if (tasksSnap.exists()) {
-          const data = tasksSnap.val();
-          if (Array.isArray(data)) {
-            calendarTasks = data;
-            localStorage.setItem(STORAGE_KEY_CALENDAR_TASKS, JSON.stringify(calendarTasks));
-          }
+          calendarTasks = listFromFirebaseValue(tasksSnap.val());
+          localStorage.setItem(STORAGE_KEY_CALENDAR_TASKS, JSON.stringify(calendarTasks));
         } else if (!eventsSnap.exists() && (calendarEvents.length + calendarTasks.length) > 0) {
           await saveCalendarToFirebase();
         }
       } catch (error) {
         console.warn('Erro ao carregar calendário do Firebase:', error);
       }
+    }
+
+    function listFromFirebaseValue(val) {
+      if (val == null) return [];
+      if (Array.isArray(val)) return val.filter((item) => item != null);
+      if (typeof val === 'object') {
+        return Object.keys(val)
+          .sort((a, b) => Number(a) - Number(b))
+          .map((key) => val[key])
+          .filter((item) => item != null);
+      }
+      return [];
     }
 
     function canEditCourses() {
@@ -293,10 +301,14 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     let lastAppliedResponsiblesSignature = '';
     let lastAppliedChecklistsSignature = '';
     let lastAppliedInstructorsSignature = '';
+    let courseSigs = new Map();
+    let responsibleSigs = new Map();
+    let checklistSigs = new Map();
+    let instructorSigs = new Map();
     let saveDebounceTimer = null;
     let renderAllTimer = null;
     let notificationsTimer = null;
-    let activeTabCache = 'cronograma';
+    let activeTabCache = 'dashboard';
 
     function loadExternalScript(src) {
       return new Promise((resolve, reject) => {
@@ -344,7 +356,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function getActiveTabName() {
-      return activeTabCache || 'cronograma';
+      return activeTabCache || 'dashboard';
     }
 
     function scheduleCheckNotifications() {
@@ -356,16 +368,21 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const tab = tabName || getActiveTabName();
       activeTabCache = tab;
       updateUIForLoginStatus();
-      if (tab === 'dashboard') {
-        renderActionCards();
-        renderStats();
-        renderLotSections();
+      if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos') {
+        if (tab === 'dashboard') {
+          renderActionCards();
+          renderStats();
+          renderLotSections();
+        }
+        if (typeof window.renderExecutionIndicators === 'function') window.renderExecutionIndicators();
       } else if (tab === 'cronograma') {
         if (document.getElementById('cronograma-cards')) renderCronograma();
       } else if (tab === 'tarefas') {
         renderTarefas();
       } else if (tab === 'instructors' && typeof window.renderInstructorsList === 'function') {
         window.renderInstructorsList();
+      } else if (tab === 'perfillote' && window.PerfilLote && typeof window.PerfilLote.render === 'function') {
+        window.PerfilLote.render();
       }
     }
     let authStateListenerStarted = false;
@@ -414,8 +431,25 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     let editingChecklistItem = null;
 
     function escapeHtml(str) {
-      if (!str) return '';
+      if (str == null || str === '') return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function jsAttr(value) {
+      return String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, '\\\'')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '\\u003c');
+    }
+
+    function parseCivilDate(value) {
+      const parsed = window.IACDates && window.IACDates.parseCivilDate(value);
+      return parsed || new Date(NaN);
+    }
+
+    function civilDateKey(value) {
+      return (window.IACDates && window.IACDates.civilDateKey(value)) || '';
     }
 
     function initChecklistFromTemplate() {
@@ -490,6 +524,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       lastAppliedInstructorsSignature = sig;
       window.instructors = normalized;
+      recordSignatures(instructorSigs, normalized);
       localStorage.setItem('instructors_data', sig);
       if (source === 'listener') {
         console.log('🔄 Instrutores sincronizados em tempo real');
@@ -549,9 +584,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (!canWrite) return;
 
       try {
-        const { ref, set } = window.firebaseModules;
-        await set(ref(window.database, 'instructors'), payload);
-        await bumpLastSync();
+        const { ref, update } = window.firebaseModules;
+        const updates = diffRecord('instructors', instructorSigs, payload);
+        if (Object.keys(updates).length) {
+          await update(ref(window.database), updates);
+          recordSignatures(instructorSigs, payload);
+          await bumpLastSync();
+        }
       } catch (e) {
         console.warn('Erro ao salvar instrutores:', e);
         if (e.code === 'PERMISSION_DENIED' || (e.message && e.message.includes('PERMISSION_DENIED'))) {
@@ -571,7 +610,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       lastAppliedCoursesSignature = signature;
       courses = normalized;
       filteredCourses = [...courses];
+      recordSignatures(courseSigs, coursesToFirebaseMap(courses));
       localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
+      stampCacheOwner();
       updateFilters();
       scheduleRenderAll();
       console.log(`🔄 Cursos sincronizados (${source})`);
@@ -585,6 +626,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       lastAppliedResponsiblesSignature = signature;
       lotResponsibles = data;
+      recordSignatures(responsibleSigs, lotResponsibles);
       localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
       scheduleRenderAll();
       console.log(`🔄 Responsáveis sincronizados (${source})`);
@@ -598,6 +640,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       lastAppliedChecklistsSignature = signature;
       courseChecklists = data;
+      recordSignatures(checklistSigs, courseChecklists);
       localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
       scheduleRenderAll();
       renderTarefas();
@@ -635,6 +678,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         const { ref, update } = window.firebaseModules;
         if (update) {
           await update(ref(window.database), updates);
+          courseSigs.set(String(courseId), JSON.stringify(courses[courseIndex]));
           lastAppliedRemoteSync = syncTimestamp;
           localStorage.setItem('lastAppliedRemoteSync', syncTimestamp);
           return;
@@ -661,71 +705,93 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return syncTimestamp;
     }
 
+    function stampCacheOwner() {
+      if (currentUser && currentUser.uid) localStorage.setItem('iac_cache_uid', currentUser.uid);
+    }
+
+    function recordSignatures(target, record) {
+      target.clear();
+      const data = record && typeof record === 'object' ? record : {};
+      Object.keys(data).forEach((key) => {
+        if (data[key] != null) target.set(String(key), JSON.stringify(data[key]));
+      });
+    }
+
+    function diffRecord(prefix, previous, record) {
+      const updates = {};
+      const data = record && typeof record === 'object' ? record : {};
+      const next = new Map();
+      Object.keys(data).forEach((key) => {
+        if (data[key] == null) return;
+        const id = String(key);
+        const sig = JSON.stringify(data[key]);
+        next.set(id, sig);
+        if (previous.get(id) !== sig) updates[prefix + '/' + id] = data[key];
+      });
+      previous.forEach((_, id) => {
+        if (!next.has(id)) updates[prefix + '/' + id] = null;
+      });
+      return updates;
+    }
+
     async function saveToRealtimeDatabase() {
+      if (!isLoggedIn) return;
+
+      localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
+      localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
+      localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
+      stampCacheOwner();
+
       if (!window.database || !window.firebaseModules) {
         console.warn('Realtime Database não disponível, usando localStorage como fallback');
-        localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
-        localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
-        localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
         return;
       }
 
+      const canWrite = await ensureAuthenticatedForWrite();
+      if (!canWrite) return;
+
       try {
-        const db = window.database;
-        const { ref, set } = window.firebaseModules;
-        
-        console.log('Salvando no Realtime Database...', { courses: courses.length, responsibles: Object.keys(lotResponsibles).length });
-        
-        const coursesToSave = coursesToFirebaseMap(courses);
+        const updates = Object.assign(
+          {},
+          diffRecord('courses', courseSigs, coursesToFirebaseMap(courses)),
+          diffRecord('responsibles', responsibleSigs, lotResponsibles || {}),
+          diffRecord('courseChecklists', checklistSigs, courseChecklists || {})
+        );
+
+        if (!Object.keys(updates).length) return;
+
         const syncTimestamp = new Date().toISOString();
+        updates.lastSync = syncTimestamp;
         lastLocalSaveTimestamp = syncTimestamp;
         lastAppliedRemoteSync = syncTimestamp;
         lastAppliedCoursesSignature = serializeCoursesForSync(courses);
         localStorage.setItem('lastAppliedRemoteSync', syncTimestamp);
 
-        await Promise.all([
-          set(ref(db, 'courses'), coursesToSave),
-          set(ref(db, 'responsibles'), lotResponsibles),
-          set(ref(db, 'courseChecklists'), courseChecklists),
-          set(ref(db, 'lastSync'), syncTimestamp),
-        ]);
-        console.log('Dados salvos no Realtime Database com sucesso');
+        const { ref, update } = window.firebaseModules;
+        await update(ref(window.database), updates);
+        recordSignatures(courseSigs, coursesToFirebaseMap(courses));
+        recordSignatures(responsibleSigs, lotResponsibles || {});
+        recordSignatures(checklistSigs, courseChecklists || {});
+        console.log('Alterações salvas no Realtime Database');
       } catch (error) {
         console.error('Erro ao salvar no Realtime Database:', error);
-        
-        // Show user-friendly error
         if (error.code === 'PERMISSION_DENIED') {
-          alert('Erro de permissão no Realtime Database. Verifique as regras de segurança no Firebase Console.');
+          showToast('Sem permissão para gravar. Publique as regras do banco e entre com uma conta autorizada.', 'error');
         }
-        
-        // Fallback to localStorage
-        localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
-        localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
-        localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
       }
     }
 
     async function saveCourseChecklists() {
       localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
-
-      if (!window.database || !window.firebaseModules) return;
-
-      try {
-        const { ref, set } = window.firebaseModules;
-        await set(ref(window.database, 'courseChecklists'), courseChecklists);
-        await bumpLastSync();
-      } catch (error) {
-        console.error('Erro ao salvar checklists:', error);
-      }
+      await saveToRealtimeDatabase();
     }
 
-    // Alias for compatibility - make sure to await this when needed
     async function saveToStorage(immediate = false) {
       clearTimeout(saveDebounceTimer);
-      if (immediate) {
-        return saveToRealtimeDatabase();
-      }
-      return saveToRealtimeDatabase();
+      if (immediate) return saveToRealtimeDatabase();
+      return new Promise((resolve) => {
+        saveDebounceTimer = setTimeout(() => resolve(saveToRealtimeDatabase()), 450);
+      });
     }
 
 
@@ -734,9 +800,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         console.warn('Realtime Database não disponível, usando localStorage');
         return;
       }
-
-      const localCourses = JSON.parse(localStorage.getItem(STORAGE_KEY_COURSES)) || [];
-      const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
 
       try {
         const db = window.database;
@@ -762,10 +825,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             normalized.forEach((course) => updateCourseStatusAutomatically(course));
             courses = normalized;
             lastAppliedCoursesSignature = serializeCoursesForSync(courses);
+            recordSignatures(courseSigs, coursesToFirebaseMap(courses));
             localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courses));
+            stampCacheOwner();
           }
-        } else if (localCourses.length > 0 && !dataMigrationDone) {
-          console.log('Migrando dados do localStorage para Realtime Database...');
+        } else if (courses.length > 0 && !dataMigrationDone) {
+          courseSigs.clear();
           await saveToRealtimeDatabase();
           dataMigrationDone = true;
         }
@@ -775,16 +840,15 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (Object.keys(dbResponsibles).length > 0) {
             lotResponsibles = dbResponsibles;
             lastAppliedResponsiblesSignature = JSON.stringify(lotResponsibles);
+            recordSignatures(responsibleSigs, lotResponsibles);
             localStorage.setItem(STORAGE_KEY_RESPONSIBLES, JSON.stringify(lotResponsibles));
           }
-        } else if (Object.keys(localResponsibles).length > 0 && !dataMigrationDone) {
-          await saveToRealtimeDatabase();
-          dataMigrationDone = true;
         }
 
         if (checklistsSnapshot && checklistsSnapshot.exists()) {
           courseChecklists = checklistsSnapshot.val() || {};
           lastAppliedChecklistsSignature = JSON.stringify(courseChecklists);
+          recordSignatures(checklistSigs, courseChecklists);
           localStorage.setItem(STORAGE_KEY_CHECKLISTS, JSON.stringify(courseChecklists));
         }
 
@@ -903,7 +967,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (!snapshot.exists()) return;
           const newEvents = snapshot.val() || [];
           if (JSON.stringify(calendarEvents) === JSON.stringify(newEvents)) return;
-          calendarEvents = Array.isArray(newEvents) ? newEvents : [];
+          calendarEvents = listFromFirebaseValue(newEvents);
           localStorage.setItem(STORAGE_KEY_CALENDAR_EVENTS, JSON.stringify(calendarEvents));
           scheduleRenderAll();
         });
@@ -912,7 +976,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           if (!snapshot.exists()) return;
           const newTasks = snapshot.val() || [];
           if (JSON.stringify(calendarTasks) === JSON.stringify(newTasks)) return;
-          calendarTasks = Array.isArray(newTasks) ? newTasks : [];
+          calendarTasks = listFromFirebaseValue(newTasks);
           localStorage.setItem(STORAGE_KEY_CALENDAR_TASKS, JSON.stringify(calendarTasks));
           scheduleRenderAll();
         });
@@ -948,34 +1012,107 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     // Firebase Authentication
+    const ADMIN_EMAILS = ['admin@iac.com', 'administrador@iac.com', 'alissonh26@gmail.com'];
+
+    function syncDangerZone() {
+      const dangerZone = document.getElementById('danger-zone');
+      if (dangerZone) dangerZone.classList.toggle('hidden', userRole !== 'admin');
+    }
+
+    async function probeIsAdmin() {
+      if (!window.database || !window.firebaseModules) return false;
+      try {
+        const { ref, get } = window.firebaseModules;
+        await get(ref(window.database, 'meta/adminProbe'));
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     async function applyUserRoleFromToken(user) {
       if (!user) {
         userRole = 'user';
+        syncDangerZone();
         return;
       }
 
+      let role = 'user';
       try {
         const idTokenResult = await user.getIdTokenResult();
-        userRole = idTokenResult.claims.role || 'user';
-
-        if (!idTokenResult.claims.role) {
-          const adminEmails = ['admin@iac.com', 'administrador@iac.com', 'alissonh26@gmail.com'];
-          userRole = adminEmails.includes(user.email?.toLowerCase()) ? 'admin' : 'user';
+        if (idTokenResult.claims && idTokenResult.claims.role) {
+          role = idTokenResult.claims.role;
         }
       } catch (error) {
         console.error('Erro ao obter custom claims:', error);
-        const adminEmails = ['admin@iac.com', 'administrador@iac.com', 'alissonh26@gmail.com'];
-        userRole = adminEmails.includes(user.email?.toLowerCase()) ? 'admin' : 'user';
       }
 
-      const dangerZone = document.getElementById('danger-zone');
-      if (dangerZone) {
-        dangerZone.classList.toggle('hidden', userRole !== 'admin');
+      if (role === 'user') {
+        const email = (user.email || '').toLowerCase();
+        if (await probeIsAdmin() || ADMIN_EMAILS.includes(email)) role = 'admin';
       }
+
+      userRole = role;
+      syncDangerZone();
+    }
+
+    function hydrateCacheForUser(uid) {
+      if (!uid || localStorage.getItem('iac_cache_uid') !== uid) return;
+      try {
+        const localCourses = JSON.parse(localStorage.getItem(STORAGE_KEY_COURSES)) || [];
+        const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
+        courseChecklists = JSON.parse(localStorage.getItem(STORAGE_KEY_CHECKLISTS)) || {};
+        courses = dedupeCoursesById(localCourses);
+        lotResponsibles = localResponsibles && typeof localResponsibles === 'object' ? localResponsibles : {};
+        filteredCourses = [...courses];
+        window.instructors = JSON.parse(localStorage.getItem('instructors_data')) || {};
+        lastAppliedInstructorsSignature = JSON.stringify(window.instructors);
+        recordSignatures(courseSigs, coursesToFirebaseMap(courses));
+        recordSignatures(responsibleSigs, lotResponsibles);
+        recordSignatures(checklistSigs, courseChecklists);
+        recordSignatures(instructorSigs, window.instructors);
+        lastAppliedCoursesSignature = serializeCoursesForSync(courses);
+        if (typeof initCalendar === 'function') initCalendar();
+        checkAndUpdateAllCourseStatuses({ persist: false });
+      } catch (error) {
+        console.warn('Erro ao restaurar cache local:', error);
+      }
+    }
+
+    function clearSensitiveLocalData() {
+      [
+        STORAGE_KEY_COURSES,
+        STORAGE_KEY_RESPONSIBLES,
+        STORAGE_KEY_CHECKLISTS,
+        STORAGE_KEY_CALENDAR_EVENTS,
+        STORAGE_KEY_CALENDAR_TASKS,
+        'instructors_data',
+        'actionLogs',
+        'lastAppliedRemoteSync',
+        'iac_cache_uid'
+      ].forEach((key) => localStorage.removeItem(key));
+      courses = [];
+      filteredCourses = [];
+      lotResponsibles = {};
+      courseChecklists = {};
+      window.instructors = {};
+      actionLogs = [];
+      if (typeof calendarEvents !== 'undefined') calendarEvents = [];
+      if (typeof calendarTasks !== 'undefined') calendarTasks = [];
+      courseSigs.clear();
+      responsibleSigs.clear();
+      checklistSigs.clear();
+      instructorSigs.clear();
+      lastAppliedCoursesSignature = '';
+      lastAppliedResponsiblesSignature = '';
+      lastAppliedChecklistsSignature = '';
+      lastAppliedInstructorsSignature = '{}';
     }
 
     function handleAuthenticatedSync(user) {
       if (!user || !window.database || !window.firebaseModules) return;
+
+      hydrateCacheForUser(user.uid);
 
       if (window.firebaseModules.goOnline) {
         window.firebaseModules.goOnline(window.database);
@@ -1006,9 +1143,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           handleAuthenticatedSync(user);
         } else {
           userRole = 'user';
+          clearSensitiveLocalData();
           teardownRealtimeListeners();
           updateUIForLoginStatus();
           renderVisibleTab(getActiveTabName());
+          showToast('Faça login para carregar os cursos.', 'info', 4000);
         }
       });
 
@@ -1180,122 +1319,80 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
     async function handleLogin() {
       const email = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value.trim();
+      const password = document.getElementById('login-password').value;
       const remember = document.getElementById('remember-login')?.checked || false;
       const errorDiv = document.getElementById('login-error');
+      const loginLoading = document.getElementById('login-loading');
+
+      function showLoginError(message) {
+        if (loginLoading) loginLoading.classList.add('hidden');
+        errorDiv.classList.remove('bg-blue-500/20', 'border-blue-500/50', 'text-blue-400');
+        errorDiv.classList.add('bg-red-500/20', 'border-red-500/50', 'text-red-400');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+        document.getElementById('login-modal').classList.remove('hidden');
+        document.body.classList.add('modal-open');
+      }
 
       if (!email || !password) {
-        errorDiv.textContent = 'Por favor, preencha todos os campos.';
-        errorDiv.classList.remove('hidden');
+        showLoginError('Por favor, preencha todos os campos.');
         return;
       }
 
-      // Mostrar tela de carregamento
-      const loginLoading = document.getElementById('login-loading');
-      if (loginLoading) {
-        loginLoading.classList.remove('hidden');
+      if (!window.firebaseAuth || !window.firebaseModules) {
+        showLoginError('Firebase ainda não carregou. Aguarde um instante e tente de novo.');
+        return;
       }
-      closeLoginModal();
+
+      if (loginLoading) loginLoading.classList.remove('hidden');
+      errorDiv.textContent = 'Entrando...';
+      errorDiv.classList.remove('hidden', 'bg-red-500/20', 'border-red-500/50', 'text-red-400');
+      errorDiv.classList.add('bg-blue-500/20', 'border-blue-500/50', 'text-blue-400');
 
       try {
-        if (!window.firebaseAuth || !window.firebaseModules) {
-          errorDiv.textContent = 'Firebase não está configurado. Configure as credenciais do Firebase no código.';
-          errorDiv.classList.remove('hidden');
-          return;
-        }
-
-        // Set persistence based on remember checkbox
         if (window.firebaseModules.setPersistence) {
           const persistence = remember
             ? window.firebaseModules.browserLocalPersistence
             : window.firebaseModules.browserSessionPersistence;
           await window.firebaseModules.setPersistence(window.firebaseAuth, persistence);
-        } else {
-          const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-          const persistence = remember ? browserLocalPersistence : browserSessionPersistence;
-          await setPersistence(window.firebaseAuth, persistence);
         }
-
-        errorDiv.textContent = 'Entrando...';
-        errorDiv.classList.remove('hidden');
-        errorDiv.classList.remove('bg-red-500/20', 'border-red-500/50', 'text-red-400');
-        errorDiv.classList.add('bg-blue-500/20', 'border-blue-500/50', 'text-blue-400');
 
         const userCredential = await window.firebaseModules.signInWithEmailAndPassword(window.firebaseAuth, email, password);
         currentUser = userCredential.user;
         isLoggedIn = true;
-        
-        // Obter custom claims do token (se configurado no Firebase)
-        try {
-          const idTokenResult = await currentUser.getIdTokenResult();
-          userRole = idTokenResult.claims.role || 'user';
-          
-          // Fallback: verificar email se não tiver custom claim configurado
-          if (!idTokenResult.claims.role) {
-            const adminEmails = ['admin@iac.com', 'administrador@iac.com', 'alissonh26@gmail.com'];
-            userRole = adminEmails.includes(email.toLowerCase()) ? 'admin' : 'user';
-          }
-        } catch (error) {
-          console.error('Erro ao obter custom claims:', error);
-          // Fallback para verificação por email
-          const adminEmails = ['admin@iac.com', 'administrador@iac.com', 'alissonh26@gmail.com'];
-          userRole = adminEmails.includes(email.toLowerCase()) ? 'admin' : 'user';
-        }
-        
+        await applyUserRoleFromToken(currentUser);
         logAction('Login', { email: email, role: userRole });
-
         updateUIForLoginStatus();
         renderAll();
-        
-        // Esconder tela de carregamento
-        const loginLoading = document.getElementById('login-loading');
-        if (loginLoading) {
-          loginLoading.classList.add('hidden');
-        }
-        
+        if (loginLoading) loginLoading.classList.add('hidden');
         showToast('Login realizado com sucesso!', 'success');
-        
-        // Success - auth state will be updated by onAuthStateChanged
         closeLoginModal();
       } catch (error) {
         console.error('Erro no login:', error);
-        errorDiv.classList.remove('bg-blue-500/20', 'border-blue-500/50', 'text-blue-400');
-        errorDiv.classList.add('bg-red-500/20', 'border-red-500/50', 'text-red-400');
-        
         let errorMessage = 'Erro ao fazer login.';
-        if (error.code === 'auth/user-not-found') {
-          errorMessage = 'Usuário não encontrado.';
-        } else if (error.code === 'auth/wrong-password') {
-          errorMessage = 'Senha incorreta.';
-        } else if (error.code === 'auth/invalid-email') {
-          errorMessage = 'E-mail inválido.';
-        } else if (error.code === 'auth/too-many-requests') {
-          errorMessage = 'Muitas tentativas. Tente novamente mais tarde.';
-        } else if (error.code === 'auth/invalid-credential') {
-          errorMessage = 'Credenciais inválidas. Verifique seu e-mail e senha.';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        errorDiv.textContent = errorMessage;
-        errorDiv.classList.remove('hidden');
-        
-        // Esconder tela de carregamento em caso de erro
-        const loginLoading = document.getElementById('login-loading');
-        if (loginLoading) {
-          loginLoading.classList.add('hidden');
-        }
-        openLoginModal(); // Reabrir modal de login
+        if (error.code === 'auth/user-not-found') errorMessage = 'Usuário não encontrado.';
+        else if (error.code === 'auth/wrong-password') errorMessage = 'Senha incorreta.';
+        else if (error.code === 'auth/invalid-email') errorMessage = 'E-mail inválido.';
+        else if (error.code === 'auth/too-many-requests') errorMessage = 'Muitas tentativas. Tente novamente mais tarde.';
+        else if (error.code === 'auth/invalid-credential') errorMessage = 'Credenciais inválidas. Verifique seu e-mail e senha.';
+        else if (error.message) errorMessage = error.message;
+        showLoginError(errorMessage);
       }
     }
 
-    async function handleLogout() {
-      if (!confirm('Deseja fazer logout?')) return;
-      
+    async function handleLogout(eventOrForce) {
+      const force = eventOrForce === true;
+      if (!force && !confirm('Deseja fazer logout?')) return;
+
       try {
         if (window.firebaseAuth && window.firebaseModules) {
           await window.firebaseModules.signOut(window.firebaseAuth);
-          // Auth state will be updated by onAuthStateChanged
+        } else {
+          clearSensitiveLocalData();
+          isLoggedIn = false;
+          currentUser = null;
+          updateUIForLoginStatus();
+          renderVisibleTab(getActiveTabName());
         }
       } catch (error) {
         console.error('Erro ao fazer logout:', error);
@@ -1480,31 +1577,16 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       try {
         initTheme();
-        const localCourses = JSON.parse(localStorage.getItem(STORAGE_KEY_COURSES)) || [];
-        const localResponsibles = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSIBLES)) || {};
-        courseChecklists = JSON.parse(localStorage.getItem(STORAGE_KEY_CHECKLISTS)) || {};
-        courses = dedupeCoursesById(localCourses);
-        try {
-          window.instructors = JSON.parse(localStorage.getItem('instructors_data')) || {};
-          lastAppliedInstructorsSignature = JSON.stringify(window.instructors);
-        } catch (_) {
-          window.instructors = {};
-          lastAppliedInstructorsSignature = '{}';
-        }
-        checkAndUpdateAllCourseStatuses({ persist: false });
-        lastAppliedCoursesSignature = serializeCoursesForSync(courses);
-        lotResponsibles = localResponsibles && typeof localResponsibles === 'object' ? localResponsibles : {};
-        filteredCourses = [...courses];
         dismissLoading();
         requestAnimationFrame(() => {
           updateFilters();
           if (!location.hash || location.hash === '#instructors' || location.hash.startsWith('#instructor/')) {
-            location.hash = 'cronograma';
+            location.hash = 'dashboard';
           }
-          activeTabCache = 'cronograma';
-          renderVisibleTab('cronograma');
+          const bootTab = (location.hash || '#dashboard').slice(1);
+          activeTabCache = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(bootTab) ? bootTab : 'dashboard';
+          renderVisibleTab(activeTabCache);
         });
-        runWhenIdle(() => checkAndUpdateAllCourseStatuses({ persist: false }), 2000);
       } catch (error) {
         console.error('Erro ao carregar do localStorage:', error);
         dismissLoading();
@@ -2107,7 +2189,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (tab === 'calendar') tab = 'cronograma';
       activeTabCache = tab;
       // Remove active de todas as tabs
-      const tabs = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'course', 'instructor'];
+      const tabs = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote', 'course', 'instructor'];
       tabs.forEach(t => {
         const tabEl = document.getElementById(`tab-${t}`);
         const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -2153,25 +2235,44 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           renderCronograma();
         } else if (tab === 'tarefas') {
           renderTarefas();
+        } else if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos') {
+          renderVisibleTab(tab);
         } else if (tab === 'instructors' && typeof renderInstructorsList === 'function') {
           renderInstructorsList();
+        } else if (tab === 'perfillote' && window.PerfilLote) {
+          window.PerfilLote.render();
         }
+        closeSidebarOnNarrow();
+      }
+    }
+
+    function sidebarIsNarrow() {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+
+    function syncSidebarLayout() {
+      const collapsed = document.body.classList.contains('sidebar-collapsed');
+      const overlay = document.getElementById('menu-overlay');
+      const button = document.getElementById('sidebar-toggle');
+      if (overlay) overlay.classList.toggle('open', sidebarIsNarrow() && !collapsed);
+      if (button) {
+        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        button.setAttribute('aria-label', collapsed ? 'Abrir menu' : 'Fechar menu');
       }
     }
 
     function toggleMenuDrawer() {
-      const drawer = document.getElementById('menu-drawer');
-      const overlay = document.getElementById('menu-overlay');
-      const isOpen = drawer.classList.contains('open');
-      
-      if (isOpen) {
-        drawer.classList.remove('open');
-        overlay.classList.remove('open');
-      } else {
-        drawer.classList.add('open');
-        overlay.classList.add('open');
-      }
+      document.body.classList.toggle('sidebar-collapsed');
+      syncSidebarLayout();
     }
+
+    function closeSidebarOnNarrow() {
+      if (!sidebarIsNarrow() || document.body.classList.contains('sidebar-collapsed')) return;
+      document.body.classList.add('sidebar-collapsed');
+      syncSidebarLayout();
+    }
+
+    document.addEventListener('DOMContentLoaded', syncSidebarLayout);
 
     function toggleFABMenu() {
       const menu = document.getElementById('fab-menu');
@@ -2194,6 +2295,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       renderActionCards();
       renderStats();
       renderLotSections();
+      if (typeof window.renderExecutionIndicators === 'function') window.renderExecutionIndicators();
       updateUIForLoginStatus();
       if (document.getElementById('cronograma-cards')) {
         renderCronograma();
@@ -2261,7 +2363,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (totalResults === 0) {
         container.innerHTML = `
           <div class="p-4 text-center text-[#8e8e93]">
-            <p class="text-sm">Nenhum resultado encontrado para "${query}"</p>
+            <p class="text-sm">Nenhum resultado encontrado para "${escapeHtml(query)}"</p>
           </div>
         `;
         container.classList.remove('hidden');
@@ -2277,16 +2379,16 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             <p class="text-xs font-semibold text-[#8e8e93] px-4 py-3 uppercase tracking-wider border-b border-[rgba(0,0,0,0.1)] dark:border-[rgba(255,255,255,0.1)]">Cursos (${results.courses.length})</p>
             <div class="py-2">
               ${results.courses.slice(0, 8).map(course => `
-                <button onclick="event.stopPropagation(); navigateToCourse('${course.id}')" class="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.1)] rounded-[10px] transition-colors mb-1 border-b border-[rgba(0,0,0,0.05)] dark:border-[rgba(255,255,255,0.05)] last:border-0">
+                <button onclick="event.stopPropagation(); navigateToCourse('${jsAttr(course.id)}')" class="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.05)] dark:hover:bg-[rgba(255,255,255,0.1)] rounded-[10px] transition-colors mb-1 border-b border-[rgba(0,0,0,0.05)] dark:border-[rgba(255,255,255,0.05)] last:border-0">
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1.5 line-clamp-2">${course.tipologia || 'Sem nome'}</p>
+                      <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1.5 line-clamp-2">${escapeHtml(course.tipologia) || 'Sem nome'}</p>
                       <div class="flex flex-wrap items-center gap-2 text-xs text-[#8e8e93]">
                         <span class="flex items-center gap-1">
                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                           </svg>
-                          ID: ${course.idCurso || '-'}
+                          ID: ${escapeHtml(course.idCurso) || '-'}
                         </span>
                         <span>•</span>
                         <span class="flex items-center gap-1">
@@ -2299,7 +2401,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                         ${course.lote ? `<span>•</span><span>Lote ${course.lote}</span>` : ''}
                       </div>
                     </div>
-                    <span class="status-badge ${getStatusClass(course.status)} flex-shrink-0 ml-2">${course.status || 'Pendente'}</span>
+                    <span class="status-badge ${getStatusClass(course.status)} flex-shrink-0 ml-2">${escapeHtml(course.status) || 'Pendente'}</span>
                   </div>
                 </button>
               `).join('')}
@@ -2382,7 +2484,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       const upcomingEvents = courses.filter(c => {
         if (!c.dataInicio) return false;
-        const startDate = new Date(c.dataInicio);
+        const startDate = parseCivilDate(c.dataInicio);
         startDate.setHours(0, 0, 0, 0);
         const daysDiff = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
         return daysDiff >= 0 && daysDiff <= 7;
@@ -2397,7 +2499,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       const delayedCourses = courses.filter(c => {
         if (!c.dataFim) return false;
-        const endDate = new Date(c.dataFim);
+        const endDate = parseCivilDate(c.dataFim);
         endDate.setHours(0, 0, 0, 0);
         return endDate < today && normalizeStatus(c.status) !== 'concluído';
       });
@@ -2412,8 +2514,30 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         document.getElementById('filter-status').value = status;
       }
       applyFilters();
-      // Scroll para os lotes
       document.getElementById('lot-sections').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function openStatusList(kind) {
+      let list = courses;
+      let title = 'Todos os cursos cadastrados';
+      let color = '#007AFF';
+      if (kind === 'concluido') {
+        list = courses.filter((course) => {
+          const status = normalizeStatus(course.status);
+          return status === 'concluído' || status === 'concluido' || status === 'concluída' || status === 'concluida';
+        });
+        title = 'Cursos concluídos';
+        color = '#34C759';
+      } else if (kind === 'pendente') {
+        list = courses.filter((course) => normalizeStatus(course.status) === 'pendente');
+        title = 'Cursos pendentes';
+        color = '#FF9500';
+      } else if (kind === 'andamento') {
+        list = courses.filter((course) => normalizeStatus(course.status).includes('andamento'));
+        title = 'Cursos em andamento';
+        color = '#007AFF';
+      }
+      openCoursesModal(title, list, color);
     }
 
     function filterByEndingToday() {
@@ -2422,7 +2546,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       const endingToday = courses.filter(c => {
         if (!c.dataFim) return false;
-        const endDate = new Date(c.dataFim);
+        const endDate = parseCivilDate(c.dataFim);
         endDate.setHours(0, 0, 0, 0);
         return endDate.getTime() === today.getTime() && normalizeStatus(c.status) !== 'concluído';
       });
@@ -2441,6 +2565,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     
     // Modal genérico para exibir cursos
     function openCoursesModal(title, coursesList, color = '#007AFF') {
+      const existing = document.getElementById('courses-list-modal');
+      if (existing) existing.remove();
       const modal = document.createElement('div');
       modal.id = 'courses-list-modal';
       modal.className = 'fixed inset-0 z-[1200]';
@@ -2449,7 +2575,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         <div class="modal-content w-full max-w-4xl max-h-[90vh] overflow-hidden">
           <div class="p-6 border-b border-border/30 flex items-center justify-between">
             <div>
-              <h2 class="text-2xl font-semibold text-foreground">${title}</h2>
+              <h2 class="text-2xl font-semibold text-foreground">${escapeHtml(title)}</h2>
               <p class="text-sm text-muted-foreground mt-1">${coursesList.length} curso(s) encontrado(s)</p>
             </div>
             <button onclick="closeCoursesModal()" class="p-2 hover:bg-secondary/50 rounded-lg transition-colors">
@@ -2467,13 +2593,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             ` : `
               <div class="space-y-3">
                 ${coursesList.map(course => `
-                  <div class="card-secondary rounded-[16px] p-4 cursor-pointer hover:scale-[1.01] transition-all" onclick="navigateToCourse('${course.id}'); closeCoursesModal();">
+                  <div class="card-secondary rounded-[16px] p-4 cursor-pointer hover:scale-[1.01] transition-all" onclick="navigateToCourse('${jsAttr(course.id)}'); closeCoursesModal();">
                     <div class="flex items-start justify-between gap-4">
                       <div class="flex-1">
-                        <h3 class="font-semibold text-foreground mb-2">${course.tipologia || 'Sem nome'}</h3>
+                        <h3 class="font-semibold text-foreground mb-2">${escapeHtml(course.tipologia) || 'Sem nome'}</h3>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
                           <div>
-                            <span class="font-medium">ID:</span> ${course.idCurso || '-'}
+                            <span class="font-medium">ID:</span> ${escapeHtml(course.idCurso) || '-'}
                           </div>
                           <div>
                             <span class="font-medium">Lote:</span> ${course.lote || '-'}
@@ -2494,14 +2620,14 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                             <span class="font-medium">Fim:</span> ${formatDate(course.dataFim)}
                           </div>
                           ` : ''}
-                          ${course.concludentes !== null ? `
+                          ${course.concludentes != null && course.concludentes !== '' ? `
                           <div>
-                            <span class="font-medium">Concludentes:</span> ${course.concludentes}
+                            <span class="font-medium">Concludentes:</span> ${escapeHtml(course.concludentes)}
                           </div>
                           ` : ''}
                         </div>
                       </div>
-                      <span class="status-badge ${getStatusClass(course.status)}">${course.status || 'Pendente'}</span>
+                      <span class="status-badge ${getStatusClass(course.status)}">${escapeHtml(course.status) || 'Pendente'}</span>
                     </div>
                   </div>
                 `).join('')}
@@ -2540,7 +2666,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       // Próximos eventos (cursos que começam nos próximos 7 dias)
       const upcomingEvents = courses.filter(c => {
         if (!c.dataInicio) return false;
-        const startDate = new Date(c.dataInicio);
+        const startDate = parseCivilDate(c.dataInicio);
         startDate.setHours(0, 0, 0, 0);
         const daysDiff = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
         return daysDiff >= 0 && daysDiff <= 7;
@@ -2552,7 +2678,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       // Cursos atrasados
       const delayedCourses = courses.filter(c => {
         if (!c.dataFim) return false;
-        const endDate = new Date(c.dataFim);
+        const endDate = parseCivilDate(c.dataFim);
         endDate.setHours(0, 0, 0, 0);
         return endDate < today && normalizeStatus(c.status) !== 'concluído';
       });
@@ -2693,13 +2819,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       today.setHours(0, 0, 0, 0);
       const coursesEndingToday = courses.filter(c => {
         if (!c.dataFim) return false;
-        const endDate = new Date(c.dataFim);
+        const endDate = parseCivilDate(c.dataFim);
         endDate.setHours(0, 0, 0, 0);
         return endDate.getTime() === today.getTime() && normalizeStatus(c.status) !== 'concluído';
       }).length;
 
       document.getElementById('stats-cards').innerHTML = `
-        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="filterByStatus('all')">
+        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="openStatusList('all')">
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm text-[#8e8e93] mb-1 font-medium">Total de Cursos</p>
@@ -2713,7 +2839,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           </div>
           <p class="text-xs text-[#8e8e93] mt-2">Clique para ver todos</p>
         </div>
-        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="filterByStatus('Concluído')">
+        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="openStatusList('concluido')">
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm text-[#8e8e93] mb-1 font-medium">Concluídos</p>
@@ -2727,7 +2853,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           </div>
           <p class="text-xs text-[#8e8e93] mt-2">Clique para ver concluídos</p>
         </div>
-        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="filterByStatus('Pendente')">
+        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="openStatusList('pendente')">
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm text-[#8e8e93] mb-1 font-medium">Pendentes</p>
@@ -2741,7 +2867,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           </div>
           <p class="text-xs text-[#8e8e93] mt-2">Clique para ver pendentes</p>
         </div>
-        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="filterByStatus('Em andamento')">
+        <div class="card-elegant rounded-[20px] p-6 cursor-pointer hover:scale-[1.02] transition-all" onclick="openStatusList('andamento')">
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm text-[#8e8e93] mb-1 font-medium">Em Andamento</p>
@@ -2818,7 +2944,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                       </div>
                             <div class="flex flex-col">
                               <div class="flex items-center gap-2">
-                                <p class="text-base font-medium text-[#1d1d1f] dark:text-[#f5f5f7]">${r.name}</p>
+                                <p class="text-base font-medium text-[#1d1d1f] dark:text-[#f5f5f7]">${escapeHtml(r.name)}</p>
                       <a href="https://wa.me/${r.phone.replace(/\D/g, '')}" target="_blank" 
                                   class="admin-only w-8 h-8 bg-[rgba(52,199,89,0.15)] hover:bg-[rgba(52,199,89,0.25)] text-[#34C759] rounded-[10px] flex items-center justify-center transition-all flex-shrink-0" title="Contatar via WhatsApp">
                                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -2826,7 +2952,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                         </svg>
                       </a>
                               </div>
-                              <p class="text-xs text-[#8e8e93]">${r.cargo}</p>
+                              <p class="text-xs text-[#8e8e93]">${escapeHtml(r.cargo)}</p>
                             </div>
                     </div>
                   `).join('')}
@@ -2887,20 +3013,20 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                 </thead>
                 <tbody>
                   ${lotCourses.map(course => `
-                    <tr class="hover:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer border-b border-[rgba(0,0,0,0.05)]" onclick="openCoursePage('${course.id}')">
+                    <tr class="hover:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer border-b border-[rgba(0,0,0,0.05)]" onclick="openCoursePage('${jsAttr(course.id)}')">
                       <!-- Added ID column to table row -->
-                      <td class="px-4 py-4 text-[#8e8e93] font-mono text-xs">${course.idCurso || '-'}</td>
-                      <td class="px-4 py-4 text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${course.tipologia}</td>
+                      <td class="px-4 py-4 text-[#8e8e93] font-mono text-xs">${escapeHtml(course.idCurso) || '-'}</td>
+                      <td class="px-4 py-4 text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${escapeHtml(course.tipologia)}</td>
                       <td class="px-4 py-4 text-[#8e8e93]">${course.cargaHoraria}h</td>
                       <td class="px-4 py-4 text-[#8e8e93]">${course.dataInicio ? formatDate(course.dataInicio) : '-'}</td>
                       <td class="px-4 py-4 text-[#8e8e93]">${course.dataFim ? formatDate(course.dataFim) : '-'}</td>
-                      <td class="px-4 py-4 text-[#8e8e93]">${course.municipio}</td>
-                      <td class="px-4 py-4 text-[#8e8e93]">${course.cozinha || '-'}</td>
+                      <td class="px-4 py-4 text-[#8e8e93]">${escapeHtml(course.municipio)}</td>
+                      <td class="px-4 py-4 text-[#8e8e93]">${escapeHtml(course.cozinha) || '-'}</td>
                       <td class="px-4 py-4">${getStatusBadge(course.status)}</td>
-                      <td class="px-4 py-4 text-[#8e8e93]">${course.concludentes !== null ? course.concludentes : '-'}</td>
+                      <td class="px-4 py-4 text-[#8e8e93]">${course.concludentes != null && course.concludentes !== '' ? escapeHtml(course.concludentes) : '-'}</td>
                       ${isLoggedIn ? `
                       <td class="px-4 py-4">
-                        <button onclick="event.stopPropagation(); deleteCourse('${course.id}')" class="p-2 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[10px] transition-colors" title="Excluir curso">
+                        <button onclick="event.stopPropagation(); deleteCourse('${jsAttr(course.id)}')" class="p-2 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[10px] transition-colors" title="Excluir curso">
                           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -2916,17 +3042,17 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             <!-- Mobile Cards -->
             <div class="md:hidden p-4 space-y-3">
               ${lotCourses.map(course => `
-                <div class="bg-[rgba(255,255,255,0.5)] border border-[rgba(0,0,0,0.1)] rounded-[16px] p-4 space-y-3 cursor-pointer hover:bg-[rgba(255,255,255,0.7)] transition-colors" onclick="openCoursePage('${course.id}')">
+                <div class="bg-[rgba(255,255,255,0.5)] border border-[rgba(0,0,0,0.1)] rounded-[16px] p-4 space-y-3 cursor-pointer hover:bg-[rgba(255,255,255,0.7)] transition-colors" onclick="openCoursePage('${jsAttr(course.id)}')">
                   <div class="flex items-start justify-between">
                     <div>
-                      <h3 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]">${course.tipologia}</h3>
+                      <h3 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]">${escapeHtml(course.tipologia)}</h3>
                       <!-- Added ID display in mobile card -->
-                      <p class="text-xs text-[#8e8e93] font-mono mt-1">ID: ${course.idCurso || '-'}</p>
+                      <p class="text-xs text-[#8e8e93] font-mono mt-1">ID: ${escapeHtml(course.idCurso) || '-'}</p>
                     </div>
                     <div class="flex items-center gap-2">
                       ${getStatusBadge(course.status)}
                       ${isLoggedIn ? `
-                      <button onclick="event.stopPropagation(); deleteCourse('${course.id}')" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[10px] transition-colors">
+                      <button onclick="event.stopPropagation(); deleteCourse('${jsAttr(course.id)}')" class="p-1.5 text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[10px] transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -2941,11 +3067,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     </div>
                     <div>
                       <p class="text-[#8e8e93] text-xs mb-1">Município</p>
-                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${course.municipio}</p>
+                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${escapeHtml(course.municipio)}</p>
                     </div>
                     <div>
                       <p class="text-[#8e8e93] text-xs mb-1">Cozinha</p>
-                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${course.cozinha || '-'}</p>
+                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${escapeHtml(course.cozinha) || '-'}</p>
                     </div>
                     <div>
                       <p class="text-[#8e8e93] text-xs mb-1">Início</p>
@@ -2957,7 +3083,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     </div>
                     <div>
                       <p class="text-[#8e8e93] text-xs mb-1">Concludentes</p>
-                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${course.concludentes !== null ? course.concludentes : '-'}</p>
+                      <p class="text-[#1d1d1f] dark:text-[#f5f5f7] font-medium">${course.concludentes != null && course.concludentes !== '' ? escapeHtml(course.concludentes) : '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -2979,36 +3105,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         'em breve': { label: 'Em breve', style: 'bg-[rgba(255,149,0,0.15)] text-[#FF9500] border-[rgba(255,149,0,0.2)]' }
       };
       
-      const statusInfo = statusMap[normalized] || { label: String(status).trim() || 'Pendente', style: 'bg-[rgba(142,142,147,0.15)] text-[#8e8e93] border-[rgba(142,142,147,0.2)]' };
+      const statusInfo = statusMap[normalized] || { label: escapeHtml(String(status).trim() || 'Pendente'), style: 'bg-[rgba(142,142,147,0.15)] text-[#8e8e93] border-[rgba(142,142,147,0.2)]' };
       return `<span class="status-badge border ${statusInfo.style}">${statusInfo.label}</span>`;
     }
 
     function formatDate(dateStr) {
       if (!dateStr) return '-';
-      
-      // Se a data está no formato YYYY-MM-DD (sem hora), usar diretamente sem conversão de timezone
-      if (typeof dateStr === 'string') {
-        const dateOnly = dateStr.split('T')[0];
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
-          const [year, month, day] = dateOnly.split('-');
-          return `${day}/${month}/${year}`;
-        }
-      }
-      
-      // Para datas com hora, criar data local explicitamente
-      const date = new Date(dateStr);
-      
-      // Verificar se a data é válida
-      if (isNaN(date.getTime())) {
-        return '-';
-      }
-      
-      // Usar componentes da data local para evitar problemas de timezone
-      // getDate(), getMonth(), getFullYear() sempre retornam valores locais
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
+      return (window.IACDates && window.IACDates.formatCivilDate(dateStr)) || '-';
     }
 
     function updateFilters() {
@@ -3017,11 +3120,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       const loteSelect = document.getElementById('filter-lote');
       loteSelect.innerHTML = '<option value="">Todos os Lotes</option>' + 
-        lots.map(l => `<option value="${l}">Lote ${l}</option>`).join('');
+        lots.map(l => `<option value="${escapeHtml(l)}">Lote ${escapeHtml(l)}</option>`).join('');
 
       const municipioSelect = document.getElementById('filter-municipio');
       municipioSelect.innerHTML = '<option value="">Todos os Municípios</option>' + 
-        municipios.map(m => `<option value="${m}">${m}</option>`).join('');
+        municipios.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
     }
 
     function applyFilters() {
@@ -3289,6 +3392,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function deleteLot() {
+      if (userRole !== 'admin') {
+        showToast('Apenas administradores podem excluir um lote.', 'error');
+        return;
+      }
       if (!confirm(`Deseja excluir o Lote ${currentEditLot} inteiro? Todos os cursos e responsáveis serão removidos.`)) return;
       courses = courses.filter(c => c.lote !== currentEditLot);
       filteredCourses = filteredCourses.filter(c => c.lote !== currentEditLot);
@@ -3324,6 +3431,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function deleteAllResponsibles() {
+      if (userRole !== 'admin') {
+        showToast('Apenas administradores podem executar esta ação.', 'error');
+        return;
+      }
       if (!confirm('Deseja excluir TODOS os responsáveis de todos os lotes? Esta ação não pode ser desfeita.')) return;
       lotResponsibles = {};
       saveToStorage(); // Save after deletion
@@ -3463,22 +3574,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             if (value === null || value === undefined) {
               value = '';
             } else if (field === 'dataInicio' || field === 'dataFim') {
-              // Formatar datas
-              if (value) {
-                try {
-                  const date = new Date(value);
-                  if (!isNaN(date.getTime())) {
-                    // Formato Excel: YYYY-MM-DD
-                    value = date.toISOString().split('T')[0];
-                  } else {
-                    value = '';
-                  }
-                } catch (e) {
-                  value = '';
-                }
-              } else {
-                value = '';
-              }
+              value = civilDateKey(value) || '';
             } else if (field === 'cargaHoraria' || field === 'concludentes' || field === 'lote') {
               // Garantir números
               value = value !== null && value !== undefined ? Number(value) : '';
@@ -3555,8 +3651,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             lote: c.lote || 0,
             municipio: c.municipio || '',
             cozinha: c.cozinha || '',
-            dataInicio: c.dataInicio ? new Date(c.dataInicio).toISOString().split('T')[0] : '',
-            dataFim: c.dataFim ? new Date(c.dataFim).toISOString().split('T')[0] : '',
+            dataInicio: civilDateKey(c.dataInicio),
+            dataFim: civilDateKey(c.dataFim),
             status: c.status || 'Pendente',
             turno: c.turno || '',
             concludentes: c.concludentes || '',
@@ -4341,52 +4437,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           } else if (field === 'cozinha' || field === 'turno' || field === 'endereco' || field === 'instrutor' || field === 'albumLink' || field === 'instrumentaisLink') {
             value = value !== null && value !== '' && value !== undefined ? String(value).trim() : null;
           } else if (field === 'dataInicio' || field === 'dataFim') {
-            if (value && typeof value === 'number') {
-              // Excel date serial number
-              try {
-                const date = new Date((value - 25569) * 86400 * 1000);
-                if (!isNaN(date.getTime())) {
-                  value = date.toISOString().split('T')[0];
-                } else {
-                  value = null;
-                }
-              } catch (e) {
-                value = null;
-              }
-            } else if (value && typeof value === 'string') {
-              // Tentar múltiplos formatos de data
-              const dateFormats = [
-                /^(\d{2})\/(\d{2})\/(\d{4})$/,  // DD/MM/YYYY
-                /^(\d{4})-(\d{2})-(\d{2})$/,      // YYYY-MM-DD
-                /^(\d{2})-(\d{2})-(\d{4})$/,     // DD-MM-YYYY
-              ];
-              
-              let parsed = null;
-              for (const format of dateFormats) {
-                const match = value.trim().match(format);
-                if (match) {
-                  if (format === dateFormats[0]) {
-                    // DD/MM/YYYY
-                    parsed = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-                  } else if (format === dateFormats[1]) {
-                    // YYYY-MM-DD
-                    parsed = new Date(value);
-                  } else if (format === dateFormats[2]) {
-                    // DD-MM-YYYY
-                    parsed = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-                  }
-                  break;
-                }
-              }
-              
-              if (!parsed) {
-                parsed = new Date(value);
-              }
-              
-              value = !isNaN(parsed.getTime()) ? parsed.toISOString().split('T')[0] : null;
-            } else {
-              value = null;
-            }
+            value = civilDateKey(value) || null;
           } else if (field === 'municipio' || field === 'tipologia') {
             // Campos de texto obrigatórios
             value = value !== null && value !== undefined ? String(value).trim() : '';
@@ -4541,12 +4592,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
               <div class="space-y-3">
                 <div>
                   <label class="block text-xs font-medium text-muted-foreground mb-1">Nome</label>
-                  <input type="text" id="edit-resp-name-${r.id}" value="${r.name}" 
+                  <input type="text" id="edit-resp-name-${r.id}" value="${escapeHtml(r.name)}" 
                     class="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-muted-foreground mb-1">Cargo</label>
-                  <input type="text" id="edit-resp-cargo-${r.id}" value="${r.cargo}" 
+                  <input type="text" id="edit-resp-cargo-${r.id}" value="${escapeHtml(r.cargo)}" 
                     class="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div>
@@ -4581,8 +4632,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     <span class="text-primary font-medium">${r.name.charAt(0)}</span>
                   </div>
                   <div>
-                    <p class="font-medium text-foreground">${r.name}</p>
-                    <p class="text-sm text-muted-foreground">${r.cargo}</p>
+                    <p class="font-medium text-foreground">${escapeHtml(r.name)}</p>
+                    <p class="text-sm text-muted-foreground">${escapeHtml(r.cargo)}</p>
                     <p class="text-xs text-muted-foreground">${r.phone}</p>
                   </div>
                 </div>
@@ -5063,8 +5114,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Filtrar cursos do mês atual (mesma lógica da função original)
       const monthCourses = courses.filter(course => {
-        const inicioDate = course.dataInicio ? new Date(course.dataInicio) : null;
-        const fimDate = course.dataFim ? new Date(course.dataFim) : null;
+        const inicioDate = course.dataInicio ? parseCivilDate(course.dataInicio) : null;
+        const fimDate = course.dataFim ? parseCivilDate(course.dataFim) : null;
         const normalizedStatus = normalizeStatus(course.status || '');
         
         // Cursos que iniciam no mês atual (mesmo que terminem em outro mês)
@@ -5124,14 +5175,14 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                    onchange="updateCronogramaSelectedCount()">
             <div class="flex-1">
               <div class="flex items-center gap-2 mb-1">
-                <span class="font-semibold text-foreground">${course.idCurso || '-'}</span>
+                <span class="font-semibold text-foreground">${escapeHtml(course.idCurso) || '-'}</span>
                 <span class="text-sm text-muted-foreground">-</span>
                 <span class="font-medium text-foreground">${course.tipologia || '-'}</span>
               </div>
               <div class="text-sm text-muted-foreground">
                 <p>Município: ${course.municipio || '-'}</p>
                 <p>Início: ${inicioDate} | Fim: ${fimDate}</p>
-                <p>Status: ${course.status || 'Pendente'}</p>
+                <p>Status: ${escapeHtml(course.status) || 'Pendente'}</p>
               </div>
             </div>
           </label>
@@ -5219,8 +5270,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       } else {
         // Filtrar cursos do mês atual
         monthCourses = courses.filter(course => {
-        const inicioDate = course.dataInicio ? new Date(course.dataInicio) : null;
-        const fimDate = course.dataFim ? new Date(course.dataFim) : null;
+        const inicioDate = course.dataInicio ? parseCivilDate(course.dataInicio) : null;
+        const fimDate = course.dataFim ? parseCivilDate(course.dataFim) : null;
         const normalizedStatus = normalizeStatus(course.status || '');
         
         // Cursos que iniciam no mês atual (mesmo que terminem em outro mês)
@@ -5294,8 +5345,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       
       monthCourses.forEach(course => {
         const normalizedStatus = normalizeStatus(course.status || '');
-        const inicioDate = course.dataInicio ? new Date(course.dataInicio + 'T00:00:00') : null;
-        const fimDate = course.dataFim ? new Date(course.dataFim + 'T00:00:00') : null;
+        const inicioDate = course.dataInicio ? parseCivilDate(course.dataInicio) : null;
+        const fimDate = course.dataFim ? parseCivilDate(course.dataFim) : null;
         
         const iniciaNoMes = inicioDate && inicioDate.getMonth() === currentMonth && inicioDate.getFullYear() === currentYear;
         const terminaNoMes = fimDate && fimDate.getMonth() === currentMonth && fimDate.getFullYear() === currentYear;
@@ -5561,12 +5612,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const highlight = !!options.highlight;
 
       return `
-          <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all duration-200 ${highlight ? 'ring-2 ring-[#007AFF]/30' : ''}" onclick="openCoursePage('${course.id}')">
+          <div class="card-elegant rounded-[20px] p-5 cursor-pointer hover:scale-[1.02] transition-all duration-200 ${highlight ? 'ring-2 ring-[#007AFF]/30' : ''}" onclick="openCoursePage('${jsAttr(course.id)}')">
             <div class="space-y-3">
               <div class="flex items-start justify-between">
                 <div class="flex-1">
                   <div class="flex items-center gap-2 mb-1">
-                    <h3 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base line-clamp-2 flex-1" style="letter-spacing: -0.01em;">${course.tipologia}</h3>
+                    <h3 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base line-clamp-2 flex-1" style="letter-spacing: -0.01em;">${escapeHtml(course.tipologia)}</h3>
                     ${userRole === 'admin' ? `
                       <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity" title="${isTurmaFechada(course) ? 'Turma formada - Clique para desmarcar' : 'Marcar turma formada'}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
@@ -5575,9 +5626,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                       </button>
                     ` : ''}
                   </div>
-                  <p class="text-xs text-[#8e8e93] font-mono">ID: ${course.idCurso || '-'}</p>
+                  <p class="text-xs text-[#8e8e93] font-mono">ID: ${escapeHtml(course.idCurso) || '-'}</p>
                 </div>
-                <span class="status-badge ${statusClass}">${course.status || 'Pendente'}</span>
+                <span class="status-badge ${statusClass}">${escapeHtml(course.status) || 'Pendente'}</span>
               </div>
 
               <div class="space-y-2 text-sm">
@@ -5592,7 +5643,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span class="truncate">${course.municipio}</span>
+                  <span class="truncate">${escapeHtml(course.municipio)}</span>
                 </div>
                 <div class="flex items-center gap-2 text-[#8e8e93]">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -5799,7 +5850,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             break;
           case 'month':
             if (course.dataInicio) {
-              const date = new Date(course.dataInicio);
+              const date = parseCivilDate(course.dataInicio);
               groupKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
               groupLabel = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             } else {
@@ -5851,11 +5902,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                 ${sortedGroupCourses.map(course => {
                   const statusClass = getStatusClass(course.status);
                   return `
-                    <div class="card-secondary rounded-[16px] p-4 cursor-pointer hover:scale-[1.02] transition-all" onclick="openCoursePage('${course.id}')">
+                    <div class="card-secondary rounded-[16px] p-4 cursor-pointer hover:scale-[1.02] transition-all" onclick="openCoursePage('${jsAttr(course.id)}')">
                       <div class="space-y-2">
                         <div class="flex items-start justify-between">
                           <div class="flex items-center gap-1.5 flex-1">
-                            <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-sm line-clamp-2 flex-1">${course.tipologia}</h4>
+                            <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-sm line-clamp-2 flex-1">${escapeHtml(course.tipologia)}</h4>
                             ${userRole === 'admin' ? `
                               <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${isTurmaFechada(course) ? 'Turma formada' : 'Marcar turma formada'}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
@@ -5864,9 +5915,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                               </button>
                             ` : ''}
                           </div>
-                          <span class="status-badge ${statusClass} ml-2">${course.status || 'Pendente'}</span>
+                          <span class="status-badge ${statusClass} ml-2">${escapeHtml(course.status) || 'Pendente'}</span>
                         </div>
-                        <p class="text-xs text-[#8e8e93] font-mono">ID: ${course.idCurso || '-'}</p>
+                        <p class="text-xs text-[#8e8e93] font-mono">ID: ${escapeHtml(course.idCurso) || '-'}</p>
                         <div class="text-xs text-[#8e8e93]">
                           <p>Lote ${course.lote} • ${course.municipio || '-'}</p>
                           ${course.dataInicio ? `<p>${formatDate(course.dataInicio)}</p>` : ''}
@@ -5938,7 +5989,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             break;
           case 'month':
             if (course.dataInicio) {
-              const date = new Date(course.dataInicio);
+              const date = parseCivilDate(course.dataInicio);
               groupKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
               groupLabel = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
               sortKey = groupKey;
@@ -6000,8 +6051,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
               
               ${group.courses.map((course, index) => {
                 const statusClass = getStatusClass(course.status);
-                const startDate = course.dataInicio ? new Date(course.dataInicio) : null;
-                const endDate = course.dataFim ? new Date(course.dataFim) : null;
+                const startDate = course.dataInicio ? parseCivilDate(course.dataInicio) : null;
+                const endDate = course.dataFim ? parseCivilDate(course.dataFim) : null;
                 const isPast = endDate && endDate < today;
                 const isCurrent = startDate && startDate <= today && (!endDate || endDate >= today);
                 
@@ -6015,12 +6066,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     </div>
                     
                     <!-- Card do curso -->
-                    <div class="card-elegant rounded-[16px] p-5 ml-4 cursor-pointer hover:scale-[1.01] transition-all" onclick="openCoursePage('${course.id}')">
+                    <div class="card-elegant rounded-[16px] p-5 ml-4 cursor-pointer hover:scale-[1.01] transition-all" onclick="openCoursePage('${jsAttr(course.id)}')">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1">
                           <div class="flex items-start justify-between mb-2">
                             <div class="flex items-center gap-1.5 flex-1">
-                              <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base flex-1">${course.tipologia}</h4>
+                              <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] text-base flex-1">${escapeHtml(course.tipologia)}</h4>
                               ${userRole === 'admin' ? `
                                 <button onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="relative opacity-70 hover:opacity-100 transition-opacity flex-shrink-0" title="${isTurmaFechada(course) ? 'Turma formada' : 'Marcar turma formada'}">
                                   <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 ${isTurmaFechada(course) ? 'text-[#007AFF]' : 'text-[#8e8e93]'}" fill="${isTurmaFechada(course) ? '#007AFF' : '#8e8e93'}" viewBox="0 0 24 24" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
@@ -6029,9 +6080,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                                 </button>
                               ` : ''}
                             </div>
-                            <span class="status-badge ${statusClass}">${course.status || 'Pendente'}</span>
+                            <span class="status-badge ${statusClass}">${escapeHtml(course.status) || 'Pendente'}</span>
                           </div>
-                          <p class="text-xs text-[#8e8e93] font-mono mb-3">ID: ${course.idCurso || '-'}</p>
+                          <p class="text-xs text-[#8e8e93] font-mono mb-3">ID: ${escapeHtml(course.idCurso) || '-'}</p>
                           
                           <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                             <div>
@@ -6311,7 +6362,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           return dateStr === inicio || dateStr === fim;
         });
 
-        const isToday = dateStr === today.toISOString().split('T')[0];
+        const isToday = dateStr === civilDateKey(new Date());
         const hasContent = dayCourses.length > 0 || dayEvents.length > 0;
         
         // Separar cursos por início e fim
@@ -6918,7 +6969,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Pendente + data de início -> Em breve (futuro) ou Em andamento (já iniciou)
       if (status === 'pendente' && hasDataInicio) {
-        const dataInicio = new Date(course.dataInicio);
+        const dataInicio = parseCivilDate(course.dataInicio);
         dataInicio.setHours(0, 0, 0, 0);
         course.status = today < dataInicio ? 'Em breve' : 'Em andamento';
         status = normalizeStatus(course.status);
@@ -6926,7 +6977,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Em breve + data de início chegou -> Em andamento
       if (status.includes('breve') && hasDataInicio) {
-        const dataInicio = new Date(course.dataInicio);
+        const dataInicio = parseCivilDate(course.dataInicio);
         dataInicio.setHours(0, 0, 0, 0);
         if (today >= dataInicio) {
           course.status = 'Em andamento';
@@ -7005,7 +7056,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Notificações inteligentes: Aviso antes do vencimento (3 dias antes)
       courses.filter(c => c.dataFim && normalizeStatus(c.status) !== 'concluído').forEach(course => {
-        const fim = new Date(course.dataFim);
+        const fim = parseCivilDate(course.dataFim);
         fim.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
         
@@ -7040,7 +7091,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Aviso de atraso
       courses.filter(c => c.dataFim && normalizeStatus(c.status) !== 'concluído').forEach(course => {
-        const fim = new Date(course.dataFim);
+        const fim = parseCivilDate(course.dataFim);
         fim.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
         
@@ -7063,7 +7114,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Cursos pendentes próximos de iniciar
       courses.filter(c => c.status === 'Pendente' && c.dataInicio).forEach(course => {
-        const inicio = new Date(course.dataInicio);
+        const inicio = parseCivilDate(course.dataInicio);
         inicio.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((inicio - today) / (1000 * 60 * 60 * 24));
         
@@ -7085,7 +7136,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       // Cursos "Em andamento" que chegaram ou passaram da data de fim
       courses.filter(c => c.status === 'Em andamento' && c.dataFim).forEach(course => {
-        const fim = new Date(course.dataFim);
+        const fim = parseCivilDate(course.dataFim);
         fim.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
         
@@ -7657,7 +7708,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
     // Inicializar notificações e calendário
     document.addEventListener('DOMContentLoaded', () => {
-      initCalendar();
       setTimeout(() => {
         checkNotifications();
         setInterval(checkNotifications, 3600000);
@@ -7910,7 +7960,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     // ========== LOGS DE AÇÕES ==========
     function logAction(action, details = {}) {
       const log = {
-        id: Date.now() + Math.random(), // Garantir ID único
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)),
         timestamp: new Date().toISOString(),
         user: currentUser?.email || 'Sistema',
         userName: currentUser?.email?.split('@')[0] || 'Sistema',
@@ -7943,22 +7993,37 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
     
     // Funções para modal de histórico/auditoria
-    function openAuditHistoryModal() {
+    async function openAuditHistoryModal() {
       if (userRole !== 'admin') {
         showToast('Apenas administradores podem acessar o histórico.', 'error');
         return;
       }
-      
-      // Carregar logs do localStorage
-      try {
-        const stored = localStorage.getItem('actionLogs');
-        if (stored) {
-          actionLogs = JSON.parse(stored);
+
+      if (window.database && window.firebaseModules) {
+        try {
+          const { ref, get } = window.firebaseModules;
+          const snap = await get(ref(window.database, 'actionLogs'));
+          if (snap.exists()) {
+            const value = snap.val() || {};
+            actionLogs = Object.values(value)
+              .filter((item) => item && item.timestamp)
+              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+              .slice(0, 300);
+          }
+        } catch (error) {
+          console.warn('Histórico remoto indisponível, usando cópia local:', error);
         }
-      } catch (e) {
-        console.error('Erro ao carregar logs:', e);
       }
-      
+
+      if (!actionLogs.length) {
+        try {
+          const stored = localStorage.getItem('actionLogs');
+          if (stored) actionLogs = JSON.parse(stored);
+        } catch (error) {
+          console.error('Erro ao carregar logs:', error);
+        }
+      }
+
       document.getElementById('audit-history-modal').classList.remove('hidden');
       document.body.classList.add('modal-open');
       renderAuditHistory();
@@ -8002,10 +8067,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-3 mb-2">
                   <div class="flex-1">
-                    <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${log.action}</h4>
+                    <h4 class="font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${escapeHtml(log.action)}</h4>
                     <p class="text-sm text-[#8e8e93]">
-                      <span class="font-medium">${log.userName || log.user}</span>
-                      ${log.userRole && log.userRole !== 'user' ? `<span class="px-1.5 py-0.5 text-xs rounded-[6px] ${log.userRole === 'admin' ? 'bg-[#007AFF] text-white' : 'bg-[rgba(142,142,147,0.2)] text-[#8e8e93]'} ml-2">${log.userRole}</span>` : ''}
+                      <span class="font-medium">${escapeHtml(log.userName || log.user)}</span>
+                      ${log.userRole && log.userRole !== 'user' ? `<span class="px-1.5 py-0.5 text-xs rounded-[6px] ${log.userRole === 'admin' ? 'bg-[#007AFF] text-white' : 'bg-[rgba(142,142,147,0.2)] text-[#8e8e93]'} ml-2">${escapeHtml(log.userRole)}</span>` : ''}
                     </p>
                   </div>
                   <div class="text-right flex-shrink-0">
@@ -8017,9 +8082,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                   <div class="mt-2 p-3 bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.05)] rounded-[10px] text-sm">
                     ${Object.entries(log.details).map(([key, value]) => {
                       if (typeof value === 'object') {
-                        return `<p class="text-[#8e8e93]"><span class="font-medium">${key}:</span> ${JSON.stringify(value)}</p>`;
+                        return `<p class="text-[#8e8e93]"><span class="font-medium">${escapeHtml(key)}:</span> ${escapeHtml(JSON.stringify(value))}</p>`;
                       }
-                      return `<p class="text-[#8e8e93]"><span class="font-medium">${key}:</span> ${value}</p>`;
+                      return `<p class="text-[#8e8e93]"><span class="font-medium">${escapeHtml(key)}:</span> ${escapeHtml(value)}</p>`;
                     }).join('')}
                   </div>
                 ` : ''}
@@ -8409,7 +8474,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                 <li><strong>viewer</strong> — apenas visualização</li>
               </ul>
             </div>
-            <p>Sem custom claims configurados, estes e-mails têm acesso admin: admin@iac.com, administrador@iac.com.</p>
+            <p>O papel de cada pessoa vem do custom claim <strong>role</strong> no Firebase Authentication. Quem está como viewer não grava no banco. A zona de perigo continua restrita a administradores.</p>
           </div>
         </div>
       `;
@@ -8427,7 +8492,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         sessionTimeout = setTimeout(() => {
           if (isLoggedIn) {
             showToast('Sessão expirada por inatividade. Faça login novamente.', 'warning', 5000);
-            handleLogout();
+            handleLogout(true);
           }
         }, TIMEOUT_DURATION);
       }
@@ -8499,6 +8564,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     window.openLoginModal = openLoginModal;
     window.showToast = showToast;
     window.switchTab = switchTab;
+    window.isCourseEmBreve = isCourseEmBreve;
+    window.isCourseEmAndamento = isCourseEmAndamento;
+    window.isCourseConcluido = isCourseConcluido;
     window.bumpLastSync = bumpLastSync;
     window.addToUndoStack = addToUndoStack;
     window.undoLastAction = undoLastAction;
@@ -8507,6 +8575,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     window.applyInstructorsFromRemote = applyInstructorsFromRemote;
     window.saveCoursePatch = saveCoursePatch;
     window.saveToStorage = saveToStorage;
+    window.openCoursesModal = openCoursesModal;
     window.__iacIsLoggedIn = () => isLoggedIn;
     window.__iacGetCourses = () => courses;
 

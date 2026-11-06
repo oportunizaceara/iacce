@@ -85,7 +85,7 @@
     if (!root || root.dataset.plReady === "1") return;
     root.dataset.plReady = "1";
     root.innerHTML =
-      '<div class="layout pl-layout"><aside class="sidebar"><div class="sidebar-header"><div class="logo">📄</div><div><div class="sidebar-title">Perfil de Lote</div><div class="sidebar-sub">Relatórios de turmas</div></div></div><div class="sidebar-actions admin-only" id="pl-sidebar-actions"><button class="btn" id="pl-btn-novo-relatorio">+ Novo Relatório</button><button class="btn btn-outline" id="pl-btn-importar"><span id="pl-import-icon">⬆</span> <span id="pl-import-label">Importar Excel</span></button><input type="file" id="pl-file-input" accept=".xlsx" class="sr-only" /><p id="pl-import-msg" class="import-msg hidden"></p></div><nav class="nav-list" id="pl-nav-list"></nav></aside><div class="main" id="pl-main"></div></div>';
+      '<div class="layout pl-layout"><aside class="sidebar"><div class="sidebar-header"><div class="logo">📄</div><div><div class="sidebar-title">Perfil de Lote</div><div class="sidebar-sub">Relatórios de turmas</div></div></div><div class="sidebar-actions pl-edit-only" id="pl-sidebar-actions"><button class="btn" id="pl-btn-novo-relatorio">+ Novo Relatório</button><button class="btn btn-outline" id="pl-btn-importar"><span id="pl-import-icon">⬆</span> <span id="pl-import-label">Importar Excel</span></button><input type="file" id="pl-file-input" accept=".xlsx" class="sr-only" /><p id="pl-import-msg" class="import-msg hidden"></p></div><nav class="nav-list" id="pl-nav-list"></nav></aside><div class="main" id="pl-main"></div></div>';
     if (!document.getElementById("pl-modal-root")) {
       const modal = document.createElement("div");
       modal.id = "pl-modal-root";
@@ -96,7 +96,7 @@
 
   function plUpdateEditMode() {
     const can = plCanEdit();
-    document.querySelectorAll("#content-perfillote .admin-only").forEach((el) => {
+    document.querySelectorAll("#content-perfillote .pl-edit-only").forEach((el) => {
       el.style.display = can ? "" : "none";
     });
   }
@@ -118,10 +118,10 @@
 
   window.PerfilLote = {
     render() {
-      plEnsureShell();
-      plBindStaticEvents();
-      plUpdateEditMode();
-      if (typeof render === "function") render();
+      const frame = document.getElementById("perfil-lote-frame");
+      if (frame && !frame.getAttribute("src")) {
+        frame.src = "https://oportunizaceara.github.io/perfildelote/";
+      }
     },
     initFirebase: plInitFirebase,
   };
@@ -571,6 +571,61 @@ const STORAGE_KEY = "perfil-lote:relatorios:v1"
       nav.innerHTML = html
     }
 
+    function cursosDoOportuniza() {
+      try {
+        return typeof window.__iacGetCourses === "function" ? window.__iacGetCourses() || [] : []
+      } catch (_) {
+        return []
+      }
+    }
+
+    function cursoDoSistema(turma) {
+      const id = String(turma?.turmaId || "").trim().toLowerCase()
+      if (!id) return null
+      return cursosDoOportuniza().find((course) => {
+        const curso = String(course.idCurso || "").trim().toLowerCase()
+        const interno = String(course.id || "").trim().toLowerCase()
+        return curso === id || interno === id
+      }) || null
+    }
+
+    function htmlCursosIntegrados(loteFiltro) {
+      const cursos = cursosDoOportuniza().filter((course) => {
+        if (!loteFiltro) return true
+        return String(course.lote) === String(loteFiltro)
+      })
+      if (!cursos.length) {
+        return `<section class="pl-bridge"><h3 class="section-title">Turmas do Oportuniza</h3><p class="dashed-empty">Nenhum curso deste sistema${loteFiltro ? ` no lote ${escapeHtml(loteFiltro)}` : ""}.</p></section>`
+      }
+      const porLote = new Map()
+      cursos.forEach((course) => {
+        const lote = course.lote == null || course.lote === "" ? "Sem lote" : String(course.lote)
+        if (!porLote.has(lote)) porLote.set(lote, [])
+        porLote.get(lote).push(course)
+      })
+      const blocos = [...porLote.entries()].map(([lote, lista]) => `
+        <div class="pl-bridge-lot">
+          <p class="pl-bridge-lot-title">Lote ${escapeHtml(lote)} · ${lista.length} curso(s)</p>
+          ${lista.slice(0, 8).map((course) => `
+            <button type="button" class="pl-bridge-course" data-open-course="${escapeHtml(course.id)}">
+              <strong>${escapeHtml(course.tipologia || "Curso")}</strong>
+              <span>${escapeHtml(course.municipio || "—")} · ${escapeHtml(course.status || "Sem status")} · ID ${escapeHtml(course.idCurso || "—")}</span>
+            </button>
+          `).join("")}
+          ${lista.length > 8 ? `<p class="meta">${lista.length - 8} curso(s) a mais neste lote.</p>` : ""}
+        </div>
+      `).join("")
+      return `<section class="pl-bridge"><h3 class="section-title">Turmas do Oportuniza</h3><p class="meta" style="margin-bottom:1rem">Mesmos cursos do painel. O perfil de idade e gênero continua nos relatórios desta aba.</p>${blocos}</section>`
+    }
+
+    function loteSugerido(relatorio) {
+      const nome = String(relatorio?.nome || "")
+      const marcado = nome.match(/lote\s*(\d+)/i)
+      if (marcado) return marcado[1]
+      const numero = nome.match(/\b(\d+)\b/)
+      return numero ? numero[1] : ""
+    }
+
     function renderDashboard() {
       const stats = calcularDashboard(relatorios)
       const duplicatasGlobal = listarDuplicatasGlobal(relatorios)
@@ -647,6 +702,7 @@ const STORAGE_KEY = "perfil-lote:relatorios:v1"
             <h3 class="section-title">Indicador de perfil</h3>
             ${perfilHtml}
           </section>
+          ${htmlCursosIntegrados("")}
         </div>`
     }
 
@@ -693,6 +749,7 @@ const STORAGE_KEY = "perfil-lote:relatorios:v1"
                   <span class="turma-name">${escapeHtml(turma.curso || "Curso não informado")}</span>
                 </p>
                 <p class="turma-meta">👥 ${turma.alunos.length} inscrito(s) · ${turmaConcludentes(turma)} concludente(s)</p>
+                ${(() => { const ligado = cursoDoSistema(turma); return ligado ? `<p class="turma-meta">Oportuniza: ${escapeHtml(ligado.status || "sem status")} · ${escapeHtml(ligado.municipio || "—")}</p>` : "" })()}
                 ${outros.length ? `<p class="turma-meta" style="color:#b45309">Também em: ${outros.map(escapeHtml).join(", ")}</p>` : ""}
               </div>
             </button>
@@ -781,6 +838,7 @@ const STORAGE_KEY = "perfil-lote:relatorios:v1"
             <h3 class="section-title">Perfil de Lote — Concludentes por Faixa Etária e Gênero</h3>
             ${renderFaixaTable(todosAlunos)}
           </section>
+          ${htmlCursosIntegrados(loteSugerido(selected))}
           <section>
             <h3 class="section-title">Turmas</h3>
             ${turmasHtml}
@@ -1091,6 +1149,11 @@ const STORAGE_KEY = "perfil-lote:relatorios:v1"
     })
 
     document.getElementById("pl-main").addEventListener("click", (e) => {
+      const abrirCurso = e.target.closest("[data-open-course]")
+      if (abrirCurso && typeof window.openCoursePage === "function") {
+        window.openCoursePage(abrirCurso.dataset.openCourse)
+        return
+      }
       const sexoBtn = e.target.closest("[data-sexo]")
       if (sexoBtn) {
         const form = sexoBtn.closest("[data-quick-add]")

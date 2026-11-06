@@ -1374,3 +1374,52 @@
     @media (prefers-reduced-motion: reduce) {
       .ambient-orb { animation: none; }
     }
+
+    .indicator-card, .indicator-row, .indicator-month {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    .indicator-card { transition: transform 0.15s ease; }
+    .indicator-card:hover, .indicator-row:hover, .indicator-month:hover { transform: translateY(-1px); }
+    .indicator-row { display: block; padding: 0.35rem 0; }
+    .indicator-track {
+      margin-top: 0.35rem;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(142, 142, 147, 0.18);
+      overflow: hidden;
+    }
+    .indicator-fill { height: 100%; border-radius: inherit; }
+    .indicator-scroll { max-height: 280px; overflow: auto; }
+    .indicator-months {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+      min-height: 140px;
+    }
+    .indicator-month {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+    .indicator-month-bar {
+      width: 100%;
+      max-width: 42px;
+      border-radius: 10px 10px 4px 4px;
+      background: rgba(0, 122, 255, 0.18);
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+    .indicator-month-done { width: 100%; background: #34C759; }
+    .indicator-month-label, .indicator-month-value {
+      font-size: 11px;
+      color: #8e8e93;
+      text-align: center;
+    }

@@ -1,8 +1,8 @@
 @echo off
-title Perfil de Lote - Servidor local
+title Plataforma IAC - Servidor local
 cd /d "%~dp0"
 echo.
-echo  Perfil de Lote - iniciando servidor em http://localhost:8080
+echo  Plataforma IAC - servidor em http://localhost:8080
 echo  Feche esta janela para parar o servidor.
 echo.
 
