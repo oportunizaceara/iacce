@@ -66,11 +66,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (!String(endereco || '').trim()) gaps.push('endereço');
       const album = draft && Object.prototype.hasOwnProperty.call(draft, 'albumLink') ? draft.albumLink : source.albumLink;
       if (!String(album || '').trim()) gaps.push('álbum');
-      const state = source.id ? courseChecklists[source.id] : null;
-      const pending = state && Array.isArray(state.emAndamento) ? state.emAndamento.filter((item) => !item.checked) : null;
-      if (!state || (pending && pending.length)) {
-        gaps.push(pending && pending.length ? ('checklist final: ' + pending.map((item) => item.label).join(', ')) : 'checklist final');
-      }
       return gaps;
     }
 
