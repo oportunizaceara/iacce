@@ -7101,18 +7101,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return !!(course && (course.instrutorId || (course.instrutor && String(course.instrutor).trim())));
     }
 
-    function checklistIsLate(course, today) {
-      if (!course || isCourseConcluido(course)) return false;
-      const state = courseChecklists[course.id];
-      if (!state) return false;
-      const inicio = daysFromToday(course.dataInicio, today);
-      const fim = daysFromToday(course.dataFim, today);
-      const initOpen = (state.inicializacao || []).some((item) => !item.checked);
-      const finalOpen = (state.emAndamento || []).some((item) => !item.checked);
-      if (inicio != null && inicio <= 0 && initOpen) return true;
-      return fim != null && fim < 0 && finalOpen;
-    }
-
     function buildCourseAlert(course, today) {
       if (!course || !course.id) return null;
       const fim = daysFromToday(course.dataFim, today);
@@ -7120,9 +7108,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const reasons = [];
       if (!isCourseConcluido(course) && fim != null && fim < 0) {
         reasons.push({ kind: 'vencido', rank: 0, priority: 'high', text: 'Término vencido há ' + Math.abs(fim) + ' dia(s).' });
-      }
-      if (checklistIsLate(course, today)) {
-        reasons.push({ kind: 'checklist', rank: 1, priority: 'high', text: 'Checklist atrasado.' });
       }
       if (isCourseConcluido(course)) {
         const gaps = courseClosureGaps(course);
@@ -7340,7 +7325,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       } else {
         const kindLabel = {
           vencido: 'Término vencido',
-          checklist: 'Checklist atrasado',
           fechamento: 'Fechamento incompleto',
           instrutor: 'Sem instrutor',
           termino: 'Término próximo',

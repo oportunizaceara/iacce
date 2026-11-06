@@ -129,19 +129,6 @@
     return date >= addDays(hoje, 1 - days) && date <= hoje;
   }
 
-  function checklistLate(course) {
-    if (isConcluido(course) || typeof window.__iacPeekChecklist !== 'function') return false;
-    const state = window.__iacPeekChecklist(course.id);
-    if (!state) return false;
-    const hoje = today();
-    const inicio = dayOf(course.dataInicio);
-    const fim = dayOf(course.dataFim);
-    const initOpen = (state.inicializacao || []).some((item) => !item.checked);
-    const finalOpen = (state.emAndamento || []).some((item) => !item.checked);
-    if (inicio && inicio <= hoje && initOpen) return true;
-    return !!(fim && fim < hoje && finalOpen);
-  }
-
   function startsSoon(course) {
     if (isConcluido(course)) return false;
     const inicio = dayOf(course.dataInicio);
@@ -157,7 +144,6 @@
     const inicio = dayOf(course.dataInicio);
     const activeSoon = startsSoon(course) || (inicio && inicio <= hoje) || (fim && fim < hoje);
     if (fim && fim < hoje && !isConcluido(course)) reasons.push({ label: 'Término vencido', rank: 0, tone: '#FF3B30' });
-    if (checklistLate(course)) reasons.push({ label: 'Checklist atrasado', rank: 1, tone: '#FF9500' });
     if (!hasInstructor(course) && !isConcluido(course) && activeSoon) reasons.push({ label: 'Sem instrutor', rank: 2, tone: '#FF9500' });
     if (startsSoon(course)) reasons.push({ label: 'Início nos próximos 7 dias', rank: 3, tone: '#007AFF' });
     return reasons.sort((a, b) => a.rank - b.rank);
@@ -495,7 +481,7 @@
 
     root.innerHTML =
       '<section class="mb-4"><div class="mb-2"><h3 class="text-xl font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]" style="letter-spacing:-0.02em">Fila do dia</h3><p class="text-sm text-[#8e8e93]">O que precisa de ação agora, do mais urgente ao início da semana.</p></div>' +
-        (filaRows || '<p class="text-sm text-[#8e8e93]">Nenhuma turma vencida, sem instrutor, com checklist atrasado ou começando nos próximos 7 dias.</p>') +
+        (filaRows || '<p class="text-sm text-[#8e8e93]">Nenhuma turma vencida, sem instrutor ou começando nos próximos 7 dias.</p>') +
         (queue.length > 6 ? '<button type="button" class="board-more" data-fila="1">' + (filaOpen ? 'Mostrar resumo' : 'Ver os ' + queue.length) + '</button>' : '') +
       '</section>' +
       '<div class="mb-2">' +
