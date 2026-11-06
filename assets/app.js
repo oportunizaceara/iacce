@@ -62,10 +62,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const concludentes = draft && Object.prototype.hasOwnProperty.call(draft, 'concludentes') ? draft.concludentes : source.concludentes;
       const numeric = Number(concludentes);
       if (concludentes == null || concludentes === '' || !Number.isFinite(numeric) || numeric < 0) gaps.push('concludentes');
-      const endereco = draft && Object.prototype.hasOwnProperty.call(draft, 'endereco') ? draft.endereco : source.endereco;
-      if (!String(endereco || '').trim()) gaps.push('endereço');
-      const album = draft && Object.prototype.hasOwnProperty.call(draft, 'albumLink') ? draft.albumLink : source.albumLink;
-      if (!String(album || '').trim()) gaps.push('álbum');
       return gaps;
     }
 
@@ -73,7 +69,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const gaps = courseClosureGaps(course, draft);
       if (!gaps.length) return false;
       if (button) setActionState(button, 'error', 'Falta encerrar');
-      showToast('Para encerrar a turma, falta: ' + gaps.join(', ') + '.', 'error', 7000);
+      showToast('Informe a quantidade de concludentes para concluir a turma.', 'error', 7000);
       return true;
     }
 
@@ -7506,11 +7502,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (concludentesDiv) concludentesDiv.classList.toggle('hidden', !closing);
       if (closureDiv) closureDiv.classList.toggle('hidden', !closing);
       if (closing) {
-        const enderecoInput = document.getElementById('quick-update-endereco');
-        const albumInput = document.getElementById('quick-update-album');
         const checklistBox = document.getElementById('quick-update-checklist');
-        if (enderecoInput) enderecoInput.value = course.endereco || '';
-        if (albumInput) albumInput.value = course.albumLink || '';
         const state = getCourseChecklistState(course.id);
         if (checklistBox) {
           checklistBox.innerHTML = (state.emAndamento || []).map((item) =>
@@ -7539,17 +7531,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (courseIndex === -1) return;
 
       const hadTurmaFormada = isTurmaFechada(courses[courseIndex]);
-      let nextEndereco = courses[courseIndex].endereco || '';
-      let nextAlbum = courses[courseIndex].albumLink || '';
       if (isCourseConcluido({ status: newStatus })) {
-        nextEndereco = (document.getElementById('quick-update-endereco')?.value || '').trim();
-        nextAlbum = (document.getElementById('quick-update-album')?.value || '').trim();
         const state = getCourseChecklistState(courseId);
         document.querySelectorAll('#quick-update-checklist input[data-check]').forEach((input) => {
           const item = (state.emAndamento || []).find((entry) => entry.key === input.getAttribute('data-check'));
           if (item) item.checked = input.checked;
         });
-        if (blockClosure(courses[courseIndex], { status: newStatus, concludentes: concludentes, endereco: nextEndereco, albumLink: nextAlbum })) {
+        if (blockClosure(courses[courseIndex], { status: newStatus, concludentes: concludentes })) {
           if (!concludentesInput.value) concludentesInput.focus();
           return;
         }
@@ -7559,8 +7547,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       courses[courseIndex].status = newStatus;
       if (isCourseConcluido({ status: newStatus })) {
         courses[courseIndex].concludentes = concludentes;
-        courses[courseIndex].endereco = nextEndereco;
-        courses[courseIndex].albumLink = nextAlbum;
       }
       preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
 
