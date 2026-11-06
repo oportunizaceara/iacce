@@ -74,6 +74,7 @@
   }
 
   let boardFocus = 'todos';
+  let filaOpen = false;
   const compareOpen = { lot: false, city: false };
   const META_KEY = 'iac_meta_cursos';
 
@@ -111,6 +112,118 @@
     const date = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
     const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
     return label.replace('.', '');
+  }
+
+  function everyone() {
+    if (typeof window.__iacGetCourses === 'function') return window.__iacGetCourses() || [];
+    return [];
+  }
+
+  function addDays(date, days) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+  }
+
+  function inRecentDays(date, days) {
+    if (!date) return false;
+    const hoje = today();
+    return date >= addDays(hoje, 1 - days) && date <= hoje;
+  }
+
+  function checklistLate(course) {
+    if (isConcluido(course) || typeof window.__iacPeekChecklist !== 'function') return false;
+    const state = window.__iacPeekChecklist(course.id);
+    if (!state) return false;
+    const hoje = today();
+    const inicio = dayOf(course.dataInicio);
+    const fim = dayOf(course.dataFim);
+    const initOpen = (state.inicializacao || []).some((item) => !item.checked);
+    const finalOpen = (state.emAndamento || []).some((item) => !item.checked);
+    if (inicio && inicio <= hoje && initOpen) return true;
+    return !!(fim && fim < hoje && finalOpen);
+  }
+
+  function startsSoon(course) {
+    if (isConcluido(course)) return false;
+    const inicio = dayOf(course.dataInicio);
+    if (!inicio) return false;
+    const hoje = today();
+    return inicio >= hoje && inicio <= addDays(hoje, 7);
+  }
+
+  function queueReasons(course) {
+    const reasons = [];
+    const hoje = today();
+    const fim = dayOf(course.dataFim);
+    const inicio = dayOf(course.dataInicio);
+    const activeSoon = startsSoon(course) || (inicio && inicio <= hoje) || (fim && fim < hoje);
+    if (fim && fim < hoje && !isConcluido(course)) reasons.push({ label: 'Término vencido', rank: 0, tone: '#FF3B30' });
+    if (checklistLate(course)) reasons.push({ label: 'Checklist atrasado', rank: 1, tone: '#FF9500' });
+    if (!hasInstructor(course) && !isConcluido(course) && activeSoon) reasons.push({ label: 'Sem instrutor', rank: 2, tone: '#FF9500' });
+    if (startsSoon(course)) reasons.push({ label: 'Início nos próximos 7 dias', rank: 3, tone: '#007AFF' });
+    return reasons.sort((a, b) => a.rank - b.rank);
+  }
+
+  function forecastText(doneCount, metaValue, list) {
+    const remaining = Math.max(metaValue - doneCount, 0);
+    if (!remaining) return 'A meta já foi alcançada.';
+    const hoje = today();
+    const start = addDays(hoje, -90);
+    const recent = list.filter((course) => {
+      if (!isConcluido(course)) return false;
+      const fim = dayOf(course.dataFim);
+      return fim && fim >= start && fim <= hoje;
+    }).length;
+    const pace = Math.round((recent / 3) * 10) / 10;
+    const monthsLeft = Math.max(11 - hoje.getMonth() + 1, 1);
+    const perMonth = Math.ceil(remaining / monthsLeft);
+    const paceLabel = pace.toLocaleString('pt-BR') + (pace === 1 ? ' curso por mês' : ' cursos por mês');
+    const needLabel = perMonth + (perMonth === 1 ? ' por mês' : ' por mês');
+    if (pace <= 0) return 'Nenhum curso foi concluído nos últimos 3 meses. Faltam ' + remaining + ', cerca de ' + needLabel + ' até dezembro.';
+    const closes = pace + 0.05 >= perMonth;
+    return 'Nos últimos 3 meses a média foi ' + paceLabel + '. Faltam ' + remaining + ', cerca de ' + needLabel + ' até dezembro. Nesse ritmo, a meta ' + (closes ? 'fecha no ano.' : 'não fecha no ano.');
+  }
+
+  function gargaloOf(list) {
+    const map = new Map();
+    list.forEach((course) => {
+      const lot = course.lote == null || course.lote === '' ? 'Sem lote' : String(course.lote);
+      if (!map.has(lot)) map.set(lot, []);
+      map.get(lot).push(course);
+    });
+    let best = null;
+    map.forEach((group, lot) => {
+      const done = group.filter(isConcluido).length;
+      const pct = percent(done, group.length);
+      const hoje = today();
+      const late = group.filter((course) => {
+        const fim = dayOf(course.dataFim);
+        return fim && fim < hoje && !isConcluido(course);
+      });
+      const stuck = late.filter((course) => !hasInstructor(course));
+      const score = stuck.length * 1000 + late.length * 10 + (100 - pct);
+      if (!best || score > best.score) best = { lot: lot, group: group, pct: pct, late: late, stuck: stuck, score: score };
+    });
+    if (!best || (best.pct === 100 && !best.late.length)) {
+      return { text: 'Nenhum gargalo entre os lotes. A execução está em dia.', courses: [] };
+    }
+    const plural = (count, one, many) => count + ' ' + (count === 1 ? one : many);
+    if (best.stuck.length) {
+      return {
+        text: 'O lote ' + best.lot + ' está em ' + best.pct + '% e concentra ' + plural(best.stuck.length, 'turma vencida sem instrutor', 'turmas vencidas sem instrutor') + '.',
+        courses: best.stuck
+      };
+    }
+    if (best.late.length) {
+      return {
+        text: 'O lote ' + best.lot + ' está em ' + best.pct + '% e tem ' + plural(best.late.length, 'turma com término vencido', 'turmas com término vencido') + '.',
+        courses: best.late
+      };
+    }
+    const open = best.group.filter((course) => !isConcluido(course));
+    return {
+      text: 'O lote ' + best.lot + ' tem a menor execução, com ' + best.pct + '%.',
+      courses: open.length ? open : best.group
+    };
   }
 
   function remember(key, title, courses, color) {
@@ -331,8 +444,60 @@
     const cityEntries = cityKeys.map((city) => ({ key: 'city:' + encodeURIComponent(city), label: city, group: cityMap.get(city) }));
     const monthEntries = months.map((key) => ({ key: 'month:' + key, label: monthLabel(key), group: monthGroups[key] }));
     const periodStats = groupStats(monthEntries);
+    const all = everyone();
+    const queue = all.map((course) => ({ course: course, reasons: queueReasons(course) }))
+      .filter((entry) => entry.reasons.length)
+      .sort((a, b) => a.reasons[0].rank - b.reasons[0].rank || String(a.course.tipologia || '').localeCompare(String(b.course.tipologia || ''), 'pt-BR'));
+    const queueShown = filaOpen ? queue : queue.slice(0, 6);
+    const filaRows = queueShown.map((entry) => {
+      const main = entry.reasons[0];
+      const extra = entry.reasons.slice(1).map((reason) => reason.label).join(' · ');
+      const course = entry.course;
+      return '<button type="button" class="fila-item" data-course="' + escapeHtml(course.id) + '">' +
+        '<span class="fila-tag" style="color:' + main.tone + '">' + escapeHtml(main.label) + '</span>' +
+        '<strong>' + escapeHtml(course.tipologia || 'Curso sem tipologia') + '</strong>' +
+        '<span>' + escapeHtml((course.municipio || 'Sem município') + ' · Lote ' + (course.lote == null || course.lote === '' ? '—' : course.lote) + ' · ID ' + (course.idCurso || '—') + (extra ? ' · ' + extra : '')) + '</span>' +
+      '</button>';
+    }).join('');
+    const gargalo = gargaloOf(courses);
+    remember('gargalo', 'Gargalo apontado nos comparativos', gargalo.courses, '#FF3B30');
+
+    function weekBucket(title, tone, list) {
+      const rows = list.slice(0, 8).map((course) =>
+        '<button type="button" class="fila-item" data-course="' + escapeHtml(course.id) + '"><strong>' + escapeHtml(course.tipologia || 'Curso sem tipologia') + '</strong><span>' + escapeHtml((course.municipio || 'Sem município') + ' · Lote ' + (course.lote == null || course.lote === '' ? '—' : course.lote)) + '</span></button>'
+      ).join('');
+      const more = list.length > 8 ? '<p class="text-xs text-[#8e8e93] mt-2">+' + (list.length - 8) + ' cursos</p>' : '';
+      return '<section class="card-elegant rounded-[20px] p-4 week-col"><header><span class="board-dot" style="background:' + tone + '"></span><h4>' + title + '</h4><b>' + list.length + '</b></header>' +
+        (rows || '<p class="text-sm text-[#8e8e93]">Nada nesta semana.</p>') + more + '</section>';
+    }
+
+    const weekStart = addDays(hoje, -6);
+    const weekEnd = addDays(hoje, 7);
+    const entered = all.filter((course) => isAndamento(course) && inRecentDays(dayOf(course.dataInicio), 7));
+    const expired = all.filter((course) => {
+      const fim = dayOf(course.dataFim);
+      return fim && fim < hoje && fim >= weekStart && !isConcluido(course);
+    });
+    const finished = all.filter((course) => {
+      if (!isConcluido(course)) return false;
+      const fim = dayOf(course.dataFim);
+      const changed = course.lastModified && course.lastModified.at ? new Date(course.lastModified.at) : null;
+      if (changed && !isNaN(changed.getTime())) changed.setHours(0, 0, 0, 0);
+      return inRecentDays(fim, 7) || inRecentDays(changed, 7);
+    });
+    const unassigned = all.filter((course) => {
+      if (hasInstructor(course) || isConcluido(course)) return false;
+      const inicio = dayOf(course.dataInicio);
+      const changed = course.lastModified && course.lastModified.at ? new Date(course.lastModified.at) : null;
+      if (changed && !isNaN(changed.getTime())) changed.setHours(0, 0, 0, 0);
+      return inRecentDays(inicio, 7) || (inicio && inicio >= hoje && inicio <= weekEnd) || inRecentDays(changed, 7);
+    });
 
     root.innerHTML =
+      '<section class="mb-4"><div class="mb-2"><h3 class="text-xl font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]" style="letter-spacing:-0.02em">Fila do dia</h3><p class="text-sm text-[#8e8e93]">O que precisa de ação agora, do mais urgente ao início da semana.</p></div>' +
+        (filaRows || '<p class="text-sm text-[#8e8e93]">Nenhuma turma vencida, sem instrutor, com checklist atrasado ou começando nos próximos 7 dias.</p>') +
+        (queue.length > 6 ? '<button type="button" class="board-more" data-fila="1">' + (filaOpen ? 'Mostrar resumo' : 'Ver os ' + queue.length) + '</button>' : '') +
+      '</section>' +
       '<div class="mb-2">' +
         '<h3 class="text-xl font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]" style="letter-spacing:-0.02em">Resumo</h3>' +
         '<p class="text-sm text-[#8e8e93]">Clique em um número para ver os cursos. Situação e comparativos estão em abas próprias.</p>' +
@@ -350,7 +515,7 @@
       '</div>' +
       '<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">' +
         '<div class="goal-card card-elegant rounded-[20px] p-5">' +
-          '<div><p class="text-sm text-[#8e8e93]">Meta de cursos concluídos</p><p class="goal-pct">' + metaPct + '%</p><p class="text-sm text-[#8e8e93]">' + concluidos.length + ' de ' + meta + '</p></div>' +
+          '<div><p class="text-sm text-[#8e8e93]">Meta de cursos concluídos</p><p class="goal-pct">' + metaPct + '%</p><p class="text-sm text-[#8e8e93]">' + concluidos.length + ' de ' + meta + '</p><p class="forecast">' + escapeHtml(forecastText(concluidos.length, meta, courses)) + '</p></div>' +
           '<label class="goal-field">Meta<input id="meta-execucao" type="number" min="1" step="1" value="' + meta + '"></label>' +
           '<div class="goal-track"><div style="width:' + metaPct + '%"></div></div>' +
         '</div>' +
@@ -378,6 +543,9 @@
         '<div class="mb-4">' +
           '<h3 class="text-xl font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]" style="letter-spacing:-0.02em">Comparativos</h3>' +
           '<p class="text-sm text-[#8e8e93]">Resumo de execução. Clique em uma barra para abrir os cursos daquele grupo.</p>' +
+          (gargalo.courses.length
+            ? '<button type="button" class="gargalo-line" data-indicator="gargalo">' + escapeHtml(gargalo.text) + '</button>'
+            : '<p class="gargalo-line is-clear">' + escapeHtml(gargalo.text) + '</p>') +
         '</div>' +
         '<div class="compare-grid">' +
           summaryCard('lot', 'Por lote', lotEntries, '#007AFF') +
@@ -419,11 +587,30 @@
           window.renderExecutionIndicators();
         });
       });
+      scope.querySelectorAll('[data-fila]').forEach((element) => {
+        element.addEventListener('click', () => {
+          filaOpen = !filaOpen;
+          window.renderExecutionIndicators();
+        });
+      });
+    }
+
+    const week = document.getElementById('semana-panel');
+    if (week) {
+      week.innerHTML =
+        '<div class="mb-4"><h3 class="text-xl font-semibold text-[#1d1d1f] dark:text-[#f5f5f7]" style="letter-spacing:-0.02em">Resumo da semana</h3><p class="text-sm text-[#8e8e93]">O que mudou nos últimos 7 dias. Clique em um curso para abrir a turma.</p></div>' +
+        '<div class="week-grid">' +
+          weekBucket('Entrou em andamento', '#007AFF', entered) +
+          weekBucket('Venceu', '#FF3B30', expired) +
+          weekBucket('Foi concluído', '#34C759', finished) +
+          weekBucket('Ficou sem instrutor', '#FF9500', unassigned) +
+        '</div>';
     }
 
     bind(root);
     bind(board);
     bind(comparisons);
+    bind(week);
     const metaInput = document.getElementById('meta-execucao');
     if (metaInput) {
       metaInput.addEventListener('change', () => {

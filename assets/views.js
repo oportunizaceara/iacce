@@ -62,13 +62,13 @@ let instructorCourseSearchOpen = false;
       return;
     }
     const tab = lastActiveTab || 'dashboard';
-    ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
+    ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
       setTabPanelVisible(document.getElementById(`content-${name}`), name === tab);
     });
   }
 
   function hideAllPages() {
-    ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
+    ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'instructor', 'perfillote'].forEach((name) => {
       const el = document.getElementById(`content-${name}`);
       if (el) el.classList.add('hidden');
     });
@@ -114,7 +114,7 @@ let instructorCourseSearchOpen = false;
   };
 
   function setActiveTabButton(tab) {
-    const tabs = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'];
+    const tabs = ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'];
     tabs.forEach((t) => {
       const tabEl = document.getElementById(`tab-${t}`);
       const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -689,7 +689,7 @@ let instructorCourseSearchOpen = false;
       if (typeof window.switchTab === 'function') window.switchTab('cronograma');
       return;
     }
-    if (['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(hash)) {
+    if (['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(hash)) {
       closeCourseModal();
       currentCoursePageId = null;
       currentInstructorPageId = null;

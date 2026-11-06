@@ -54,6 +54,34 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return status === 'concluído' || status === 'concluido' || status === 'concluida' || status === 'concluída';
     }
 
+    function courseClosureGaps(course, draft) {
+      const source = course || {};
+      const status = draft && draft.status != null ? draft.status : source.status;
+      if (!isCourseConcluido({ status: status })) return [];
+      const gaps = [];
+      const concludentes = draft && Object.prototype.hasOwnProperty.call(draft, 'concludentes') ? draft.concludentes : source.concludentes;
+      const numeric = Number(concludentes);
+      if (concludentes == null || concludentes === '' || !Number.isFinite(numeric) || numeric < 0) gaps.push('concludentes');
+      const endereco = draft && Object.prototype.hasOwnProperty.call(draft, 'endereco') ? draft.endereco : source.endereco;
+      if (!String(endereco || '').trim()) gaps.push('endereço');
+      const album = draft && Object.prototype.hasOwnProperty.call(draft, 'albumLink') ? draft.albumLink : source.albumLink;
+      if (!String(album || '').trim()) gaps.push('álbum');
+      const state = source.id ? courseChecklists[source.id] : null;
+      const pending = state && Array.isArray(state.emAndamento) ? state.emAndamento.filter((item) => !item.checked) : null;
+      if (!state || (pending && pending.length)) {
+        gaps.push(pending && pending.length ? ('checklist final: ' + pending.map((item) => item.label).join(', ')) : 'checklist final');
+      }
+      return gaps;
+    }
+
+    function blockClosure(course, draft, button) {
+      const gaps = courseClosureGaps(course, draft);
+      if (!gaps.length) return false;
+      if (button) setActionState(button, 'error', 'Falta encerrar');
+      showToast('Para encerrar a turma, falta: ' + gaps.join(', ') + '.', 'error', 7000);
+      return true;
+    }
+
     function isCourseEmBreve(course) {
       if (isTurmaFechada(course)) return false;
       if (isCourseConcluido(course)) return false;
@@ -368,7 +396,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const tab = tabName || getActiveTabName();
       activeTabCache = tab;
       updateUIForLoginStatus();
-      if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos') {
+      if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos' || tab === 'semana') {
         if (tab === 'dashboard') {
           renderActionCards();
           renderStats();
@@ -1584,7 +1612,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             location.hash = 'dashboard';
           }
           const bootTab = (location.hash || '#dashboard').slice(1);
-          activeTabCache = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(bootTab) ? bootTab : 'dashboard';
+          activeTabCache = ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote'].includes(bootTab) ? bootTab : 'dashboard';
           renderVisibleTab(activeTabCache);
         });
       } catch (error) {
@@ -2189,7 +2217,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (tab === 'calendar') tab = 'cronograma';
       activeTabCache = tab;
       // Remove active de todas as tabs
-      const tabs = ['dashboard', 'situacao', 'comparativos', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote', 'course', 'instructor'];
+      const tabs = ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'settings', 'instructors', 'perfillote', 'course', 'instructor'];
       tabs.forEach(t => {
         const tabEl = document.getElementById(`tab-${t}`);
         const tabMobileEl = document.getElementById(`tab-${t}-mobile`);
@@ -2235,7 +2263,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           renderCronograma();
         } else if (tab === 'tarefas') {
           renderTarefas();
-        } else if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos') {
+        } else if (tab === 'dashboard' || tab === 'situacao' || tab === 'comparativos' || tab === 'semana') {
           renderVisibleTab(tab);
         } else if (tab === 'instructors' && typeof renderInstructorsList === 'function') {
           renderInstructorsList();
@@ -3276,8 +3304,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const dataFim = document.getElementById('edit-course-fim').value || null;
       const status = document.getElementById('edit-course-status').value;
       const turno = document.getElementById('edit-course-turno').value || null;
-      const concludentes = document.getElementById('edit-course-concludentes').value ? parseInt(document.getElementById('edit-course-concludentes').value) : null;
+      const concludentesRaw = document.getElementById('edit-course-concludentes').value;
+      const concludentes = concludentesRaw === '' ? null : parseInt(concludentesRaw, 10);
       
+      if (blockClosure(courses.find((item) => item.id === currentEditCourse.id), { status: status, concludentes: concludentes }, buttonElement)) return;
+
       // Atualizar curso
       const courseIndex = courses.findIndex(c => c.id === currentEditCourse.id);
       if (courseIndex !== -1) {
@@ -3877,6 +3908,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         alert('Preencha todos os campos obrigatórios (*)');
         return;
       }
+
+      if (blockClosure({ status: status, endereco: '', albumLink: '' }, { status: status, concludentes: concludentes, endereco: '', albumLink: '' })) return;
 
       const newCourse = {
         id: `course-${Date.now()}`,
@@ -5542,6 +5575,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     let calendarEvents = [];
     let calendarTasks = [];
     let notifications = [];
+    let notifDismissed = {};
+    let notifSeen = {};
     
     // Inicializar calendário ao carregar
     function initCalendar() {
@@ -6232,7 +6267,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         instrumentaisLink: courses[courseIndex].instrumentaisLink
       };
 
-      // Atualizar todos os campos editáveis
+      const nextStatus = document.getElementById('cronograma-edit-status').value;
+      const nextConcludentesRaw = document.getElementById('cronograma-edit-concludentes').value;
+      const nextConcludentes = nextConcludentesRaw === '' ? null : parseInt(nextConcludentesRaw, 10);
+      const nextEndereco = document.getElementById('cronograma-edit-endereco').value.trim();
+      const nextAlbum = document.getElementById('cronograma-edit-album').value.trim();
+      if (blockClosure(courses[courseIndex], { status: nextStatus, concludentes: nextConcludentes, endereco: nextEndereco, albumLink: nextAlbum })) return;
+
       courses[courseIndex].idCurso = document.getElementById('cronograma-edit-id').value.trim() || null;
       courses[courseIndex].tipologia = document.getElementById('cronograma-edit-tipologia').value.trim() || null;
       courses[courseIndex].cargaHoraria = document.getElementById('cronograma-edit-carga').value ? parseInt(document.getElementById('cronograma-edit-carga').value) : null;
@@ -6241,12 +6282,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       courses[courseIndex].cozinha = document.getElementById('cronograma-edit-cozinha').value.trim() || null;
       courses[courseIndex].dataInicio = document.getElementById('cronograma-edit-inicio').value || null;
       courses[courseIndex].dataFim = document.getElementById('cronograma-edit-fim').value || null;
-      courses[courseIndex].status = document.getElementById('cronograma-edit-status').value;
+      courses[courseIndex].status = nextStatus;
       courses[courseIndex].turno = document.getElementById('cronograma-edit-turno').value || null;
-      courses[courseIndex].concludentes = document.getElementById('cronograma-edit-concludentes').value ? parseInt(document.getElementById('cronograma-edit-concludentes').value) : null;
+      courses[courseIndex].concludentes = nextConcludentes;
       courses[courseIndex].instrutor = document.getElementById('cronograma-edit-instrutor').value.trim() || null;
-      courses[courseIndex].endereco = document.getElementById('cronograma-edit-endereco').value.trim() || null;
-      courses[courseIndex].albumLink = document.getElementById('cronograma-edit-album').value.trim() || null;
+      courses[courseIndex].endereco = nextEndereco || null;
+      courses[courseIndex].albumLink = nextAlbum || null;
       courses[courseIndex].instrumentaisLink = document.getElementById('cronograma-edit-instrumentais').value.trim() || null;
       courses[courseIndex].lastModified = {
         by: currentUser?.email || 'Sistema',
@@ -7048,160 +7089,133 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
     }
 
+    function loadNotifMemory() {
+      try { notifDismissed = JSON.parse(localStorage.getItem('iac_notif_dismissed') || '{}') || {}; } catch (error) { notifDismissed = {}; }
+      try { notifSeen = JSON.parse(localStorage.getItem('iac_notif_seen') || '{}') || {}; } catch (error) { notifSeen = {}; }
+    }
+
+    function saveNotifMemory() {
+      localStorage.setItem('iac_notif_dismissed', JSON.stringify(notifDismissed));
+      localStorage.setItem('iac_notif_seen', JSON.stringify(notifSeen));
+    }
+
+    function daysFromToday(value, today) {
+      const date = parseCivilDate(value);
+      if (!date || isNaN(date.getTime())) return null;
+      date.setHours(0, 0, 0, 0);
+      return Math.round((date.getTime() - today.getTime()) / 86400000);
+    }
+
+    function courseHasInstructor(course) {
+      return !!(course && (course.instrutorId || (course.instrutor && String(course.instrutor).trim())));
+    }
+
+    function checklistIsLate(course, today) {
+      if (!course || isCourseConcluido(course)) return false;
+      const state = courseChecklists[course.id];
+      if (!state) return false;
+      const inicio = daysFromToday(course.dataInicio, today);
+      const fim = daysFromToday(course.dataFim, today);
+      const initOpen = (state.inicializacao || []).some((item) => !item.checked);
+      const finalOpen = (state.emAndamento || []).some((item) => !item.checked);
+      if (inicio != null && inicio <= 0 && initOpen) return true;
+      return fim != null && fim < 0 && finalOpen;
+    }
+
+    function buildCourseAlert(course, today) {
+      if (!course || !course.id) return null;
+      const fim = daysFromToday(course.dataFim, today);
+      const inicio = daysFromToday(course.dataInicio, today);
+      const reasons = [];
+      if (!isCourseConcluido(course) && fim != null && fim < 0) {
+        reasons.push({ kind: 'vencido', rank: 0, priority: 'high', text: 'Término vencido há ' + Math.abs(fim) + ' dia(s).' });
+      }
+      if (checklistIsLate(course, today)) {
+        reasons.push({ kind: 'checklist', rank: 1, priority: 'high', text: 'Checklist atrasado.' });
+      }
+      if (isCourseConcluido(course)) {
+        const gaps = courseClosureGaps(course);
+        if (gaps.length) reasons.push({ kind: 'fechamento', rank: 1, priority: 'high', text: 'Turma encerrada sem ' + gaps.join(', ') + '.' });
+      }
+      const needsInstructor = !courseHasInstructor(course) && !isCourseConcluido(course) && ((inicio != null && inicio <= 7) || (fim != null && fim < 0));
+      if (needsInstructor) reasons.push({ kind: 'instrutor', rank: 2, priority: 'medium', text: 'Sem instrutor.' });
+      if (!isCourseConcluido(course) && fim != null && fim >= 0 && fim <= 7) {
+        reasons.push({ kind: 'termino', rank: 3, priority: fim <= 1 ? 'high' : 'medium', text: fim === 0 ? 'Término é hoje.' : 'Término em ' + fim + ' dia(s).' });
+      }
+      if (!isCourseConcluido(course) && inicio != null && inicio >= 0 && inicio <= 7) {
+        reasons.push({ kind: 'inicio', rank: 4, priority: inicio <= 1 ? 'high' : 'medium', text: inicio === 0 ? 'Começa hoje.' : 'Início em ' + inicio + ' dia(s).' });
+      }
+      if (!reasons.length) return null;
+      reasons.sort((a, b) => a.rank - b.rank);
+      const primary = reasons[0];
+      const canConclude = reasons.some((reason) => reason.kind === 'vencido' || reason.kind === 'termino' || reason.kind === 'fechamento');
+      return {
+        id: 'course:' + course.id,
+        type: 'course',
+        kind: primary.kind,
+        rank: primary.rank,
+        courseId: course.id,
+        courseIdCurso: course.idCurso || '-',
+        courseName: course.tipologia || 'Curso sem tipologia',
+        courseDate: primary.kind === 'inicio' ? course.dataInicio : course.dataFim,
+        message: reasons.map((reason) => reason.text).join(' '),
+        action: canConclude ? 'conclude' : 'view',
+        priority: reasons.some((reason) => reason.priority === 'high') ? 'high' : 'medium',
+        signature: reasons.map((reason) => reason.kind).join('|')
+      };
+    }
+
+    function buildAgendaAlert(item, today) {
+      if (!item || !item.id || !item.date || item.completed) return null;
+      const diff = daysFromToday(item.date, today);
+      if (diff == null || diff > 7) return null;
+      const label = item.type === 'task' ? 'Tarefa' : 'Evento';
+      const title = item.title || label;
+      if (diff < 0) {
+        return {
+          id: 'item:' + item.id,
+          type: 'overdue',
+          itemId: item.id,
+          itemTitle: title,
+          rank: 0,
+          priority: 'high',
+          signature: 'overdue',
+          message: label + ' "' + title + '" está atrasada há ' + Math.abs(diff) + ' dia(s).'
+        };
+      }
+      return {
+        id: 'item:' + item.id,
+        type: 'upcoming',
+        itemId: item.id,
+        itemTitle: title,
+        rank: 5,
+        priority: diff <= 1 ? 'high' : 'medium',
+        signature: 'upcoming',
+        message: label + ' "' + title + '" ' + (diff === 0 ? 'é hoje.' : 'é em ' + diff + ' dia(s).')
+      };
+    }
+
     // Sistema de Notificações
     function checkNotifications() {
-      notifications = [];
+      loadNotifMemory();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-      // Notificações inteligentes: Aviso antes do vencimento (3 dias antes)
-      courses.filter(c => c.dataFim && normalizeStatus(c.status) !== 'concluído').forEach(course => {
-        const fim = parseCivilDate(course.dataFim);
-        fim.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 3) {
-          notifications.push({
-            id: `notif-${course.id}-vencimento-3d`,
-            type: 'course-expiring',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataFim,
-            message: `Curso vence em 3 dias. Prepare-se para finalização.`,
-            action: 'view-course',
-            priority: 'medium',
-            daysUntil: 3
-          });
-        } else if (diffDays === 1) {
-          notifications.push({
-            id: `notif-${course.id}-vencimento-1d`,
-            type: 'course-expiring',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataFim,
-            message: `Curso vence amanhã! Ação necessária.`,
-            action: 'view-course',
-            priority: 'high',
-            daysUntil: 1
-          });
-        }
+      const built = [];
+      courses.forEach((course) => {
+        const alert = buildCourseAlert(course, today);
+        if (alert) built.push(alert);
       });
-
-      // Aviso de atraso
-      courses.filter(c => c.dataFim && normalizeStatus(c.status) !== 'concluído').forEach(course => {
-        const fim = parseCivilDate(course.dataFim);
-        fim.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays < 0) {
-          notifications.push({
-            id: `notif-${course.id}-atraso`,
-            type: 'course-delayed',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataFim,
-            message: `⚠️ Curso está ${Math.abs(diffDays)} dia(s) atrasado! Ação urgente necessária.`,
-            action: 'update-status',
-            targetStatus: 'Concluído',
-            priority: 'high',
-            daysDelayed: Math.abs(diffDays)
-          });
-        }
+      [...calendarEvents, ...calendarTasks].forEach((item) => {
+        const alert = buildAgendaAlert(item, today);
+        if (alert) built.push(alert);
       });
-
-      // Cursos pendentes próximos de iniciar
-      courses.filter(c => c.status === 'Pendente' && c.dataInicio).forEach(course => {
-        const inicio = parseCivilDate(course.dataInicio);
-        inicio.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((inicio - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays <= 1 && diffDays >= 0) {
-          notifications.push({
-            id: `notif-${course.id}-inicio`,
-            type: 'course-start',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataInicio,
-            message: `Curso ${diffDays === 0 ? 'inicia hoje' : 'inicia amanhã'}. Atualize o status para "Em andamento".`,
-            action: 'update-status',
-            targetStatus: 'Em andamento',
-            priority: diffDays === 0 ? 'high' : 'medium'
-          });
-        }
-      });
-
-      // Cursos "Em andamento" que chegaram ou passaram da data de fim
-      courses.filter(c => c.status === 'Em andamento' && c.dataFim).forEach(course => {
-        const fim = parseCivilDate(course.dataFim);
-        fim.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((fim - today) / (1000 * 60 * 60 * 24));
-        
-        // Notificar se chegou ou passou da data de fim
-        if (diffDays <= 0) {
-          notifications.push({
-            id: `notif-${course.id}-fim`,
-            type: 'course-end',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataFim,
-            message: `Curso ${diffDays === 0 ? 'chegou' : 'passou'} da data de término. É necessário alterar o status para "Concluído" e informar a quantidade de concludentes.`,
-            action: 'update-status',
-            targetStatus: 'Concluído',
-            priority: 'high',
-            requiresConcludentes: true
-          });
-        } else if (diffDays <= 1) {
-          notifications.push({
-            id: `notif-${course.id}-fim`,
-            type: 'course-end',
-            courseId: course.id,
-            courseIdCurso: course.idCurso || '-',
-            courseName: course.tipologia,
-            courseDate: course.dataFim,
-            message: `Curso próximo do término. Prepare-se para alterar o status para "Concluído" e informar a quantidade de concludentes.`,
-            action: 'update-status',
-            targetStatus: 'Concluído',
-            priority: 'medium',
-            requiresConcludentes: true
-          });
-        }
-      });
-
-      const allItems = [...calendarEvents, ...calendarTasks];
-      allItems.forEach(item => {
-        const itemDate = new Date(item.date);
-        itemDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((itemDate - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays < 0) {
-          notifications.push({
-            id: `notif-${item.id}-atrasado`,
-            type: 'overdue',
-            itemId: item.id,
-            itemTitle: item.title,
-            message: `${item.type === 'task' ? 'Tarefa' : 'Evento'} "${item.title}" está atrasado.`,
-            priority: 'high'
-          });
-        } else if (diffDays <= 2 && diffDays >= 0) {
-          notifications.push({
-            id: `notif-${item.id}-proximo`,
-            type: 'upcoming',
-            itemId: item.id,
-            itemTitle: item.title,
-            message: `${item.type === 'task' ? 'Tarefa' : 'Evento'} "${item.title}" está próximo (${diffDays === 0 ? 'hoje' : `em ${diffDays} dia(s)`}).`,
-            priority: diffDays === 0 ? 'high' : 'medium'
-          });
-        }
-      });
-
+      built.sort((a, b) => a.rank - b.rank || String(a.courseName || a.itemTitle || '').localeCompare(String(b.courseName || b.itemTitle || ''), 'pt-BR'));
+      const activeIds = new Set(built.map((item) => item.id));
+      Object.keys(notifDismissed).forEach((id) => { if (!activeIds.has(id)) delete notifDismissed[id]; });
+      Object.keys(notifSeen).forEach((id) => { if (!activeIds.has(id)) delete notifSeen[id]; });
+      saveNotifMemory();
+      notifications = built.filter((item) => notifDismissed[item.id] !== item.signature);
       updateNotificationsBadge();
-      
-      // Enviar notificações push
       sendPushNotifications();
     }
     
@@ -7214,58 +7228,67 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
     
     function sendPushNotifications() {
-      if (!('Notification' in window) || Notification.permission !== 'granted') {
-        return;
-      }
-      
-      notifications.forEach(notif => {
-        const title = notif.type === 'course-start' ? 'Curso Iniciando' : 
-                     notif.type === 'course-end' ? 'Curso Finalizando' :
-                     notif.type === 'overdue' ? 'Tarefa/Evento Atrasado' :
-                     'Lembrete';
-        
-        const body = notif.type === 'course-start' || notif.type === 'course-end' ?
-          `${notif.courseIdCurso} - ${notif.courseName}` :
-          notif.message;
-        
-        const options = {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const today = new Date().toDateString();
+      notifications.filter((notif) => notif.priority === 'high').forEach((notif) => {
+        const title = notif.type === 'course'
+          ? (notif.kind === 'inicio' ? 'Início de turma' : notif.kind === 'fechamento' ? 'Fechamento incompleto' : 'Turma precisa de ação')
+          : (notif.type === 'overdue' ? 'Agenda atrasada' : 'Lembrete');
+        const body = notif.type === 'course'
+          ? (notif.courseIdCurso + ' — ' + notif.courseName + '. ' + notif.message)
+          : notif.message;
+        const stampKey = 'notif-push-' + notif.id;
+        if (localStorage.getItem(stampKey) === today) return;
+        new Notification(title, {
           body: body,
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           tag: notif.id,
-          requireInteraction: notif.priority === 'high',
-          vibrate: notif.priority === 'high' ? [200, 100, 200] : [200]
-        };
-        
-        // Verificar se já foi notificado hoje
-        const lastNotified = localStorage.getItem(`notif-${notif.id}`);
-        const today = new Date().toDateString();
-        
-        if (lastNotified !== today) {
-          new Notification(title, options);
-          localStorage.setItem(`notif-${notif.id}`, today);
-        }
+          requireInteraction: true
+        });
+        localStorage.setItem(stampKey, today);
       });
+    }
+
+    function unseenNotificationCount() {
+      return notifications.filter((notif) => notifSeen[notif.id] !== notif.signature).length;
     }
 
     function updateNotificationsBadge() {
       const badge = document.getElementById('notifications-badge');
-      if (badge) {
-        if (notifications.length > 0) {
-          badge.textContent = notifications.length > 99 ? '99+' : notifications.length;
-          badge.classList.remove('hidden');
-        } else {
-          badge.classList.add('hidden');
-        }
+      if (!badge) return;
+      const count = unseenNotificationCount();
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
       }
+    }
+
+    function markNotificationsSeen() {
+      notifications.forEach((notif) => { notifSeen[notif.id] = notif.signature; });
+      saveNotifMemory();
+      updateNotificationsBadge();
     }
 
     function openNotificationsModal() {
       checkNotifications();
+      markNotificationsSeen();
       document.getElementById('notifications-modal').classList.remove('hidden');
       document.body.classList.add('modal-open');
-      switchNotificationTab('courses'); // Resetar para aba de cursos
+      switchNotificationTab('courses');
       renderNotifications();
+    }
+
+    function openCourseFromNotification(courseId) {
+      closeNotificationsModal();
+      if (typeof openCoursePage === 'function') openCoursePage(courseId);
+    }
+
+    function concludeFromNotification(courseId) {
+      closeNotificationsModal();
+      openQuickUpdateModal(courseId, 'Concluído');
     }
 
     function closeNotificationsModal(event) {
@@ -7310,7 +7333,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (!coursesContainer || !tasksContainer) return;
 
       // Separar notificações por tipo
-      const courseNotifications = notifications.filter(n => n.type === 'course-start' || n.type === 'course-end');
+      const courseNotifications = notifications.filter(n => n.type === 'course');
       const taskNotifications = notifications.filter(n => n.type === 'overdue' || n.type === 'upcoming');
 
       // Renderizar notificações de cursos
@@ -7324,54 +7347,40 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           </div>
         `;
       } else {
+        const kindLabel = {
+          vencido: 'Término vencido',
+          checklist: 'Checklist atrasado',
+          fechamento: 'Fechamento incompleto',
+          instrutor: 'Sem instrutor',
+          termino: 'Término próximo',
+          inicio: 'Início próximo'
+        };
         coursesContainer.innerHTML = courseNotifications.map(notif => {
-          const priorityColor = {
-            'high': 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
-            'medium': 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800',
-            'low': 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-          }[notif.priority] || 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800';
-
           const dateStr = notif.courseDate ? formatDate(notif.courseDate) : '-';
-          const timeAgo = notif.courseDate ? getTimeAgo(new Date(notif.courseDate)) : '-';
-          const iconColor = notif.priority === 'high' ? '#FF3B30' : notif.priority === 'medium' ? '#FF9500' : '#007AFF';
-          
+          const iconColor = notif.priority === 'high' ? '#FF3B30' : '#FF9500';
+          const courseId = jsAttr(notif.courseId);
           return `
             <div class="card-elegant rounded-[16px] p-4 border-l-4 relative" style="border-left-color: ${iconColor};">
-              <button onclick="deleteNotification('${notif.id}')" class="absolute top-3 right-3 p-1.5 text-[#8e8e93] hover:text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[8px] transition-colors" title="Excluir notificação">
+              <button onclick="deleteNotification('${jsAttr(notif.id)}')" class="absolute top-3 right-3 p-1.5 text-[#8e8e93] hover:text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[8px] transition-colors" title="Dispensar até a situação mudar">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
               <div class="flex items-start gap-3 mb-3 pr-8">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background-color: ${iconColor}20;">
-                  ${notif.type === 'course-start' ? 
-                    '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color: ' + iconColor + ';" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>' :
-                    '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color: ' + iconColor + ';" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
-                  }
-              </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-1">
-                    <p class="text-xs font-semibold uppercase tracking-wider" style="color: ${iconColor};">${notif.type === 'course-start' ? '⏰ Início de Curso' : '✅ Término de Curso'}</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider" style="color: ${iconColor};">${escapeHtml(kindLabel[notif.kind] || 'Turma')}</p>
                     ${notif.priority === 'high' ? '<span class="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-semibold rounded-full">Urgente</span>' : ''}
                   </div>
-                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${notif.courseName}</p>
-                  <p class="text-xs text-[#8e8e93] font-mono mb-1">ID: ${notif.courseIdCurso}</p>
-                  <div class="flex items-center gap-2 text-xs text-[#8e8e93]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>${dateStr}</span>
-                    <span>•</span>
-                    <span>${timeAgo}</span>
-                  </div>
+                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${escapeHtml(notif.courseName)}</p>
+                  <p class="text-xs text-[#8e8e93] font-mono mb-1">ID: ${escapeHtml(notif.courseIdCurso)}${dateStr && dateStr !== '-' ? ' · ' + escapeHtml(dateStr) : ''}</p>
                 </div>
               </div>
-              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${notif.message}${notif.requiresConcludentes ? ' <strong class="text-[#FF3B30]">É necessário informar a quantidade de concludentes.</strong>' : notif.action === 'update-status' ? `. Atualize o status para "${notif.targetStatus}".` : '.'}</p>
-              ${notif.action === 'update-status' ? `
-                <button onclick="openQuickUpdateModal('${notif.courseId}', '${notif.targetStatus}')" class="w-full px-4 py-2.5 bg-[#007AFF] hover:bg-[#0051D5] text-white rounded-[10px] text-sm font-semibold transition-colors shadow-sm">
-                  Atualizar para ${notif.targetStatus}${notif.requiresConcludentes ? ' (com concludentes)' : ''}
-                </button>
-              ` : ''}
+              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${escapeHtml(notif.message)}</p>
+              <div class="flex gap-2">
+                <button onclick="openCourseFromNotification('${courseId}')" class="flex-1 px-4 py-2.5 bg-[rgba(0,122,255,0.12)] text-[#007AFF] rounded-[10px] text-sm font-semibold">Ver turma</button>
+                ${notif.action === 'conclude' ? `<button onclick="concludeFromNotification('${courseId}')" class="flex-1 px-4 py-2.5 bg-[#007AFF] hover:bg-[#0051D5] text-white rounded-[10px] text-sm font-semibold">Concluir</button>` : ''}
+              </div>
             </div>
           `;
         }).join('');
@@ -7419,7 +7428,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                     ${notif.priority === 'high' ? '<span class="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-semibold rounded-full">Urgente</span>' : ''}
                     ${isCompleted ? '<span class="px-2 py-0.5 bg-[#34C759] text-white text-xs font-semibold rounded-full">✓ Concluída</span>' : ''}
                   </div>
-                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${notif.itemTitle}</p>
+                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${escapeHtml(notif.itemTitle)}</p>
                   ${item && item.date ? `
                     <div class="flex items-center gap-2 text-xs text-[#8e8e93]">
                       <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -7432,7 +7441,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                   ` : ''}
                 </div>
               </div>
-              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${notif.message}</p>
+              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${escapeHtml(notif.message)}</p>
               ${isTask && !isCompleted ? `
                 <button onclick="markTaskAsCompletedFromNotification('${notif.itemId}', '${notif.id}')" class="w-full px-4 py-2.5 bg-[#34C759] hover:bg-[#30D158] text-white rounded-[10px] text-sm font-semibold transition-colors shadow-sm">
                   Marcar como Realizada
@@ -7447,19 +7456,20 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     function deleteNotification(notificationId) {
       const index = notifications.findIndex(n => n.id === notificationId);
       if (index === -1) return;
-      
+      notifDismissed[notifications[index].id] = notifications[index].signature;
+      saveNotifMemory();
       notifications.splice(index, 1);
       renderNotifications();
       updateNotificationsBadge();
     }
 
     function deleteAllNotifications() {
-      if (!confirm('Tem certeza que deseja excluir todas as notificações?')) return;
-      
+      if (!confirm('Dispensar os avisos atuais até a situação mudar?')) return;
+      notifications.forEach((notif) => { notifDismissed[notif.id] = notif.signature; });
+      saveNotifMemory();
       notifications = [];
       renderNotifications();
       updateNotificationsBadge();
-      alert('Todas as notificações foram excluídas!');
     }
 
     function markTaskAsCompletedFromNotification(taskId, notificationId) {
@@ -7494,15 +7504,23 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       document.getElementById('quick-update-new-status').textContent = newStatus;
       document.getElementById('quick-update-course-id-hidden').value = courseId;
       document.getElementById('quick-update-status-hidden').value = newStatus;
-      document.getElementById('quick-update-concludentes').value = course.concludentes !== null ? course.concludentes : '';
-      
-      // Mostrar campo de concludentes apenas se for para "Concluído"
+      document.getElementById('quick-update-concludentes').value = course.concludentes != null ? course.concludentes : '';
+      const closing = isCourseConcluido({ status: newStatus });
       const concludentesDiv = document.getElementById('quick-update-concludentes-div');
-      if (concludentesDiv) {
-        if (newStatus === 'Concluído') {
-          concludentesDiv.classList.remove('hidden');
-        } else {
-          concludentesDiv.classList.add('hidden');
+      const closureDiv = document.getElementById('quick-update-closure');
+      if (concludentesDiv) concludentesDiv.classList.toggle('hidden', !closing);
+      if (closureDiv) closureDiv.classList.toggle('hidden', !closing);
+      if (closing) {
+        const enderecoInput = document.getElementById('quick-update-endereco');
+        const albumInput = document.getElementById('quick-update-album');
+        const checklistBox = document.getElementById('quick-update-checklist');
+        if (enderecoInput) enderecoInput.value = course.endereco || '';
+        if (albumInput) albumInput.value = course.albumLink || '';
+        const state = getCourseChecklistState(course.id);
+        if (checklistBox) {
+          checklistBox.innerHTML = (state.emAndamento || []).map((item) =>
+            '<label class="flex items-start gap-2 text-sm text-foreground"><input type="checkbox" data-check="' + escapeHtml(item.key) + '"' + (item.checked ? ' checked' : '') + '><span>' + escapeHtml(item.label) + '</span></label>'
+          ).join('') || '<p class="text-sm text-muted-foreground">Checklist final ainda não existe.</p>';
         }
       }
       
@@ -7520,24 +7538,34 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const courseId = document.getElementById('quick-update-course-id-hidden').value;
       const newStatus = document.getElementById('quick-update-status-hidden').value;
       const concludentesInput = document.getElementById('quick-update-concludentes');
-      const concludentes = concludentesInput.value ? parseInt(concludentesInput.value) : null;
+      const concludentes = concludentesInput.value === '' ? null : parseInt(concludentesInput.value, 10);
 
       const courseIndex = courses.findIndex(c => c.id === courseId);
       if (courseIndex === -1) return;
 
       const hadTurmaFormada = isTurmaFechada(courses[courseIndex]);
-
-      // Validação: se for concluído, concludentes é obrigatório
-      if (newStatus === 'Concluído' && (!concludentesInput.value || concludentes === null)) {
-        alert('Por favor, informe a quantidade de concludentes ao concluir um curso.');
-        concludentesInput.focus();
-        return;
+      let nextEndereco = courses[courseIndex].endereco || '';
+      let nextAlbum = courses[courseIndex].albumLink || '';
+      if (isCourseConcluido({ status: newStatus })) {
+        nextEndereco = (document.getElementById('quick-update-endereco')?.value || '').trim();
+        nextAlbum = (document.getElementById('quick-update-album')?.value || '').trim();
+        const state = getCourseChecklistState(courseId);
+        document.querySelectorAll('#quick-update-checklist input[data-check]').forEach((input) => {
+          const item = (state.emAndamento || []).find((entry) => entry.key === input.getAttribute('data-check'));
+          if (item) item.checked = input.checked;
+        });
+        if (blockClosure(courses[courseIndex], { status: newStatus, concludentes: concludentes, endereco: nextEndereco, albumLink: nextAlbum })) {
+          if (!concludentesInput.value) concludentesInput.focus();
+          return;
+        }
       }
 
       const oldStatus = courses[courseIndex].status;
       courses[courseIndex].status = newStatus;
-      if (newStatus === 'Concluído' && concludentes !== null) {
+      if (isCourseConcluido({ status: newStatus })) {
         courses[courseIndex].concludentes = concludentes;
+        courses[courseIndex].endereco = nextEndereco;
+        courses[courseIndex].albumLink = nextAlbum;
       }
       preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
 
@@ -8567,6 +8595,12 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     window.isCourseEmBreve = isCourseEmBreve;
     window.isCourseEmAndamento = isCourseEmAndamento;
     window.isCourseConcluido = isCourseConcluido;
+    window.__iacPeekChecklist = function (courseId) {
+      return courseChecklists[courseId] || null;
+    };
+    window.__iacGetActionLogs = function () {
+      return actionLogs || [];
+    };
     window.bumpLastSync = bumpLastSync;
     window.addToUndoStack = addToUndoStack;
     window.undoLastAction = undoLastAction;
