@@ -1,0 +1,31 @@
+Publicar o Oportuniza no GitHub Pages
+Site: https://oportunizaceara.github.io/iacce/
+Repositório: https://github.com/oportunizaceara/iacce
+
+Envie o CONTEÚDO desta pasta para a raiz do repositório.
+Não crie uma pasta Publicar-Oportuniza dentro do GitHub.
+
+1. Abra https://github.com/oportunizaceara/iacce
+2. Clique em Add file e depois em Upload files.
+3. Abra a pasta Publicar-Oportuniza no Desktop.
+4. Selecione tudo que está dentro dela, inclusive a pasta assets e o arquivo .nojekyll.
+   No Explorer, ative Exibir > Itens ocultos para ver o .nojekyll.
+5. Arraste esses itens para a página de upload do GitHub.
+6. Confira se aparecem, na raiz:
+   - index.html
+   - manifest.json
+   - sw.js
+   - .nojekyll
+   - icon-192.png
+   - icon-512.png
+   - assets/app.js
+   - assets/demands.js
+   - assets/calendar-board.js
+   - assets/glass.css
+7. Escreva uma mensagem, por exemplo: Publica demandas, calendário e layout atual.
+8. Clique em Commit changes.
+9. Espere 1 a 3 minutos.
+10. Abra o site e atualize com Ctrl+Shift+R.
+
+Se o GitHub avisar que um arquivo já existe, confirme a substituição.
+O arquivo .nojekyll precisa ir junto. Sem ele, o GitHub Pages pode ignorar arquivos.
