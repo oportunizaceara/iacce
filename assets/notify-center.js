@@ -232,31 +232,7 @@
 
   function renderSummary() {
     const host = document.getElementById('iac-ops-summary');
-    if (!host) return;
-    if (!iac().isLoggedIn) {
-      host.innerHTML = '';
-      return;
-    }
-    const people = data().people();
-    const active = Object.keys(people).length;
-    const demands = global.IACDemands ? global.IACDemands.counts() : { total: 0, todo: 0, doing: 0, review: 0, waiting: 0, done: 0, late: 0 };
-    const courses = typeof global.__iacGetCourses === 'function' ? global.__iacGetCourses() : [];
-    const today = global.IACDates.civilDateKey(new Date());
-    let running = 0;
-    let starting = 0;
-    (courses || []).forEach((course) => {
-      const start = global.IACDates.civilDateKey(course.dataInicio);
-      const end = global.IACDates.civilDateKey(course.dataFim || course.dataInicio);
-      if (start && end && start <= today && end >= today) running += 1;
-      if (start && start > today && start <= addDays(today, 7)) starting += 1;
-    });
-    const eventsToday = global.IACCalendar ? global.IACCalendar.todayCount() : 0;
-    const recent = (global.IAC && global.__iacGetActionLogs) ? global.__iacGetActionLogs().slice(0, 6) : [];
-    host.innerHTML =
-      '<section class="iac-card"><h3>Operação da equipe</h3><div class="iac-row"><span class="iac-pill">Ativos no diretório: ' + active + '</span><span class="iac-pill">Compromissos hoje: ' + eventsToday + '</span><span class="iac-pill">Demandas: ' + demands.total + '</span><span class="iac-pill">Concluídas: ' + demands.done + '</span></div></section>' +
-      '<section class="iac-card"><h3>Demandas</h3><div class="iac-row"><span class="iac-pill">A fazer: ' + demands.todo + '</span><span class="iac-pill">Em andamento: ' + demands.doing + '</span><span class="iac-pill">Em revisão: ' + demands.review + '</span><span class="iac-pill">Aguardando retorno: ' + demands.waiting + '</span><span class="iac-pill atrasada">Atrasadas: ' + demands.late + '</span></div></section>' +
-      '<section class="iac-card"><h3>Calendário</h3><div class="iac-row"><span class="iac-pill">Cursos em andamento: ' + running + '</span><span class="iac-pill">Começam em até 7 dias: ' + starting + '</span><span class="iac-pill">Itens de hoje: ' + eventsToday + '</span></div></section>' +
-      '<section class="iac-card"><h3>Atividades recentes</h3>' + (recent.length ? recent.map((log) => '<article class="iac-note"><strong>' + esc(log.userName || log.actorName || '—') + '</strong> · ' + esc(log.action || '') + '<div class="iac-status">' + esc(log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '') + '</div></article>').join('') : '<div class="iac-empty">As operações feitas nesta sessão aparecem aqui. O histórico completo fica em Auditoria.</div>') + '</section>';
+    if (host) host.innerHTML = '';
   }
 
   document.addEventListener('iac-auth-changed', () => {

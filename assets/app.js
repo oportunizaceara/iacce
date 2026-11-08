@@ -346,6 +346,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     let renderAllTimer = null;
     let notificationsTimer = null;
     let activeTabCache = 'dashboard';
+    const APP_TABS = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'demandas', 'calendario', 'auditoria', 'equipe'];
+    const SAVED_TAB_KEY = 'iac-active-tab';
 
     function loadExternalScript(src) {
       return new Promise((resolve, reject) => {
@@ -1288,10 +1290,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
             return;
           }
           updateUIForLoginStatus();
+          restoreRoute(true);
           handleAuthenticatedSync(user);
-          const requested = (location.hash || '').replace('#', '');
-          const known = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'demandas', 'calendario', 'auditoria', 'equipe'];
-          switchTab(known.includes(requested) ? requested : 'dashboard');
           document.dispatchEvent(new CustomEvent('iac-auth-changed'));
         } else {
           const hadSession = authHadUser;
@@ -1304,7 +1304,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           teardownRealtimeListeners();
           stopPublicSchedule();
           updateUIForLoginStatus();
-          switchTab('cronograma');
+          switchTab('cronograma', { persist: hadSession });
           startPublicSchedule();
           document.dispatchEvent(new CustomEvent('iac-auth-changed'));
           if (hadSession) showToast('Sessão encerrada. O cronograma continua disponível só para consulta.', 'info', 4000);
@@ -1768,13 +1768,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         requestAnimationFrame(() => {
           updateFilters();
           const signedIn = !!(window.firebaseAuth && window.firebaseAuth.currentUser);
-          let bootTab = (location.hash || '').replace('#', '');
-          if (bootTab === 'situacao' || bootTab === 'comparativos' || bootTab === 'semana') bootTab = 'dashboard';
-          const known = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'demandas', 'calendario', 'auditoria', 'equipe'];
-          if (!known.includes(bootTab)) bootTab = signedIn ? 'dashboard' : 'cronograma';
-          if (!signedIn) bootTab = 'cronograma';
-          activeTabCache = bootTab;
-          switchTab(bootTab);
+          if (signedIn) restoreRoute(true);
+          else switchTab('cronograma', { persist: false });
           if (!signedIn) startPublicSchedule();
         });
       } catch (error) {
@@ -2385,11 +2380,64 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       }
     }
 
-    function switchTab(tab) {
+    function readSavedRoute() {
+      let hash = '';
+      try {
+        hash = decodeURIComponent((location.hash || '').replace(/^#/, '')).trim();
+      } catch (error) {
+        hash = (location.hash || '').replace(/^#/, '').trim();
+      }
+      if (hash === 'calendar' || hash === 'perfillote') hash = 'cronograma';
+      if (hash === 'situacao' || hash === 'comparativos' || hash === 'semana') hash = 'dashboard';
+      if (APP_TABS.includes(hash) || hash.startsWith('course/') || hash.startsWith('instructor/')) return hash;
+      try {
+        const saved = sessionStorage.getItem(SAVED_TAB_KEY) || '';
+        if (saved === 'calendar' || saved === 'perfillote') return 'cronograma';
+        if (saved === 'situacao' || saved === 'comparativos' || saved === 'semana') return 'dashboard';
+        if (APP_TABS.includes(saved) || saved.startsWith('course/') || saved.startsWith('instructor/')) return saved;
+      } catch (error) {}
+      return '';
+    }
+
+    function rememberRoute(tab) {
+      if (!tab) return;
+      const current = (location.hash || '').replace(/^#/, '');
+      if (current.startsWith('course/') || current.startsWith('instructor/')) {
+        try { sessionStorage.setItem(SAVED_TAB_KEY, current); } catch (error) {}
+        return;
+      }
+      try { sessionStorage.setItem(SAVED_TAB_KEY, tab); } catch (error) {}
+      if (current === tab) return;
+      try {
+        const url = new URL(location.href);
+        url.hash = tab;
+        history.replaceState(null, '', url);
+      } catch (error) {}
+    }
+
+    function restoreRoute(signedIn) {
+      const route = readSavedRoute();
+      if (!signedIn) {
+        switchTab('cronograma', { persist: false });
+        return;
+      }
+      if (route.startsWith('instructor/') || route.startsWith('course/')) {
+        switchTab(route.startsWith('instructor/') ? 'instructors' : 'dashboard', { persist: false });
+        if (typeof window.handleHashRoute === 'function') window.handleHashRoute(false);
+        return;
+      }
+      switchTab(APP_TABS.includes(route) ? route : 'dashboard');
+    }
+
+    function switchTab(tab, options) {
+      const persist = !options || options.persist !== false;
       if (tab === 'calendar' || tab === 'perfillote') tab = 'cronograma';
       if (tab === 'situacao' || tab === 'comparativos' || tab === 'semana') tab = 'dashboard';
-      if (!isLoggedIn && tab !== 'cronograma') tab = 'cronograma';
+      const coerced = !isLoggedIn && tab !== 'cronograma';
+      if (coerced) tab = 'cronograma';
       activeTabCache = tab;
+      window.__iacActiveTab = tab;
+      if (persist && !coerced) rememberRoute(tab);
       const navTab = (tab === 'instructors' || tab === 'auditoria' || tab === 'equipe') ? 'settings' : tab;
       // Remove active de todas as tabs
       const tabs = ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'demandas', 'calendario', 'auditoria', 'equipe', 'settings', 'instructors', 'course', 'instructor'];

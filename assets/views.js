@@ -23,7 +23,19 @@ function getInstructorsData() {
 let currentCoursePageId = null;
 let currentInstructorPageId = null;
 let currentCourseSection = 'overview';
-let lastActiveTab = 'dashboard';
+function initialTabName() {
+  try {
+    const hash = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+    const known = ['dashboard', 'cronograma', 'tarefas', 'settings', 'instructors', 'demandas', 'calendario', 'auditoria', 'equipe'];
+    if (known.includes(hash)) return hash;
+    if (hash.startsWith('instructor/')) return 'instructors';
+    const saved = sessionStorage.getItem('iac-active-tab') || '';
+    if (known.includes(saved)) return saved;
+    if (saved.startsWith('instructor/')) return 'instructors';
+  } catch (error) {}
+  return 'dashboard';
+}
+let lastActiveTab = initialTabName();
 let instructorCourseSearchOpen = false;
 
   function instructorEditGuard() {
@@ -63,7 +75,8 @@ let instructorCourseSearchOpen = false;
       ensureInstructorPageVisible();
       return;
     }
-    const tab = lastActiveTab || 'dashboard';
+    const tab = (window.__iacActiveTab && String(window.__iacActiveTab)) || lastActiveTab || 'dashboard';
+    lastActiveTab = tab;
     APP_PAGES.forEach((name) => {
       setTabPanelVisible(document.getElementById(`content-${name}`), name === tab);
     });
@@ -720,7 +733,8 @@ let instructorCourseSearchOpen = false;
     if (typeof window.switchTab === 'function') {
       window._switchTabCore = window.switchTab;
       window.switchTab = function (tab) {
-        if (!(window.IAC && window.IAC.isLoggedIn) && tab !== 'cronograma' && tab !== 'calendar') tab = 'cronograma';
+        const guestLock = !(window.IAC && window.IAC.isLoggedIn) && tab !== 'cronograma' && tab !== 'calendar';
+        if (guestLock) tab = 'cronograma';
         if (!['course', 'instructor'].includes(tab)) {
           closeCourseModal();
           currentCoursePageId = null;
@@ -731,7 +745,7 @@ let instructorCourseSearchOpen = false;
           lastActiveTab = tab;
           if (tab === 'instructors' && currentInstructorPageId) {
             /* hash instructor/id definido por openInstructorPage */
-          } else if (!location.hash.startsWith('#course/') && location.hash !== `#${tab}`) {
+          } else if (!guestLock && !location.hash.startsWith('#course/') && location.hash !== `#${tab}`) {
             location.hash = tab;
           }
         }
