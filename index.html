@@ -5,6 +5,17 @@
   <script>
     (function () {
       try {
+        if (!/\.github\.io$/i.test(location.hostname)) return;
+        var path = location.pathname || '/';
+        if (path === '/' || path === '/index.html') {
+          location.replace('/iacce/' + location.search + location.hash);
+        }
+      } catch (error) {}
+    })();
+  </script>
+  <script>
+    (function () {
+      try {
         var uid = localStorage.getItem('iac-glass-user');
         var theme = uid && localStorage.getItem('iac-glass-' + uid);
         var ok = { azul: 1, ciano: 1, violeta: 1, menta: 1, pessego: 1 };
@@ -19,7 +30,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="IAC">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=73">
   <!-- Favicon e Ícones -->
   <!-- Apenas referências essenciais - ícones serão carregados se existirem -->
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" onerror="this.remove()">
@@ -70,9 +81,9 @@
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
   <link rel="stylesheet" href="assets/app.css?v=45">
-  <link rel="stylesheet" href="assets/shell.css?v=51">
+  <link rel="stylesheet" href="assets/shell.css?v=74">
   <link rel="stylesheet" href="assets/modules.css?v=68">
-  <link rel="stylesheet" href="assets/glass.css?v=1">
+  <link rel="stylesheet" href="assets/glass.css?v=74">
 </head>
 <body class="min-h-screen guest-mode">
   <script>
@@ -262,6 +273,24 @@
           Ajustes
         </button>
       </nav>
+      <div class="side-foot">
+        <button type="button" onclick="openLoginModal()" id="login-btn-side" class="view-only side-link side-login">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          Login
+        </button>
+        <button type="button" onclick="IACNotify.open()" class="auth-only hidden side-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" /></svg>
+          Notificações
+        </button>
+        <button type="button" onclick="IACTeam.openProfile()" class="auth-only hidden side-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          Meu perfil
+        </button>
+        <button type="button" onclick="handleLogout()" id="logout-btn-side" class="auth-only hidden side-link side-logout">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          Sair
+        </button>
+      </div>
     </aside>
 
     <!-- Header compacto -->
@@ -303,6 +332,16 @@
               <!-- Resultados serão inseridos aqui -->
             </div>
         </div>
+        </div>
+        <div class="mobile-account flex md:hidden items-center gap-1.5">
+          <button type="button" onclick="openLoginModal()" id="login-btn-bar" class="view-only login-cta">Login</button>
+          <button type="button" onclick="IACNotify.open()" class="auth-only hidden mobile-icon-btn" title="Notificações" aria-label="Notificações">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" /></svg>
+          </button>
+          <button type="button" onclick="IACTeam.openProfile()" class="auth-only hidden mobile-icon-btn" title="Meu perfil" aria-label="Meu perfil">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          </button>
+          <button type="button" onclick="handleLogout()" id="logout-btn-bar" class="auth-only hidden mobile-logout">Sair</button>
         </div>
         <!-- Botões Desktop -->
         <div class="hidden md:flex items-center gap-3 header-actions">
@@ -1955,7 +1994,7 @@
   </script>
   <script defer src="assets/dates.js?v=45"></script>
   <script defer src="assets/instructors-boot.js?v=45"></script>
-  <script defer src="assets/app.js?v=72"></script>
+  <script defer src="assets/app.js?v=74"></script>
   <script defer src="assets/team.js?v=70"></script>
   <script defer src="assets/audit.js?v=59"></script>
   <script defer src="assets/demands.js?v=68"></script>

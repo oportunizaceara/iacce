@@ -1474,6 +1474,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function openLoginModal() {
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        document.body.classList.add('sidebar-collapsed');
+        syncSidebarLayout();
+      }
       document.getElementById('login-modal').classList.remove('hidden');
       document.getElementById('login-error').classList.add('hidden');
       document.getElementById('login-email').value = '';

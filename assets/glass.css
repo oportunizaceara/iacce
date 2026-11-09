@@ -221,6 +221,7 @@ body.dark .iac-modal .iac-dialog {
 }
 
 #login-btn,
+#login-btn-bar,
 .iac-btn:not(.secondary):not(.danger),
 .side-mark {
   background: var(--glass-accent) !important;
