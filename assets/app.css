@@ -556,7 +556,7 @@
         transform: scale(0.96);
       }
       
-      .modal-content {
+      .modal-content:not(.course-modal-panel) {
         position: absolute !important;
         width: 100vw !important;
         max-width: 100vw !important;
@@ -576,7 +576,7 @@
     }
     
     @media (min-width: 768px) {
-      .modal-content {
+      .modal-content:not(.course-modal-panel) {
         position: absolute !important;
         width: auto !important;
         height: auto !important;
@@ -1497,11 +1497,17 @@
     #course-modal.is-open .modal-overlay { opacity: 1; }
     #course-modal.is-closing .modal-overlay { opacity: 0; }
     #course-modal .course-modal-panel {
-      position: relative;
+      position: relative !important;
+      top: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      left: auto !important;
       z-index: 1;
-      width: min(1120px, 100%);
-      height: min(820px, calc(100vh - 36px));
-      max-height: calc(100vh - 36px);
+      width: min(1120px, 100%) !important;
+      height: min(820px, calc(100vh - 36px)) !important;
+      max-height: calc(100vh - 36px) !important;
+      max-width: 100% !important;
+      margin: 0 !important;
       padding: 0 !important;
       overflow: hidden;
       background: #f4f7fb !important;
@@ -1528,7 +1534,7 @@
     .cdetail { display: flex; flex-direction: column; min-width: 0; overflow: auto; color: #1d1d1f; }
     .cdetail-banner {
       position: relative; overflow: hidden;
-      display: flex; align-items: center; gap: 14px; flex: none;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; flex: none;
       padding: 18px 18px 16px; color: #fff;
       background: linear-gradient(105deg, #08316e 0%, #007AFF 58%, #3d98ff 100%);
     }
@@ -1545,8 +1551,8 @@
       display: grid; place-items: center; opacity: .88; pointer-events: none;
     }
     .cdetail-scene svg { width: 92px !important; height: 68px !important; }
-    .cdetail-banner-text { min-width: 0; flex: 1; }
-    .cdetail-banner h1 { margin: 0 0 8px; font-size: 1.45rem; line-height: 1.2; letter-spacing: -.03em; overflow-wrap: anywhere; }
+    .cdetail-banner-text { flex: 1 1 16rem; min-width: min(100%, 12rem); }
+    .cdetail-banner h1 { margin: 0 0 8px; font-size: 1.45rem; line-height: 1.2; letter-spacing: -.03em; overflow-wrap: break-word; }
     .cdetail-banner-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .82rem; font-weight: 650; }
     .cdetail-pill {
       display: inline-flex; align-items: center; gap: 6px;
@@ -1556,7 +1562,7 @@
     .cdetail-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff; }
     .cdetail-pill--soon { background: #FF9500; }
     .cdetail-pill--late { background: #FF3B30; }
-    .cdetail-actions { display: flex; align-items: center; gap: 8px; flex: none; z-index: 1; margin-left: auto; }
+    .cdetail-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; z-index: 1; margin-left: auto; max-width: 100%; }
     .cdetail-btn--tiny { padding: 5px 8px; font-size: 11px; background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); }
     .cdetail-btn--tiny.is-on { background: #34C759; border-color: transparent; color: #fff; }
     .cdetail-actions svg { width: 16px; height: 16px; }
@@ -1657,13 +1663,20 @@
       .cdetail-facts { grid-template-columns: 1fr 1fr; }
       .cdetail-chips { grid-template-columns: 1fr 1fr; }
       .cdetail-stage, .cdetail-address { grid-template-columns: 1fr; }
-      .cdetail-banner { flex-wrap: wrap; }
       .cdetail-scene { display: none; }
+      .cdetail-actions { flex-basis: 100%; justify-content: flex-start; }
     }
     @media (max-width: 800px) {
       #course-modal { padding: 0; }
-      #course-modal .course-modal-panel { width: 100%; height: 100%; max-height: 100%; border-radius: 0 !important; }
+      #course-modal .course-modal-panel {
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+      }
       .cdetail-banner h1 { font-size: 1.2rem; }
+      .cdetail-banner-text { min-width: 0; flex-basis: 12rem; }
       .cdetail-actions { width: 100%; }
     }
 
