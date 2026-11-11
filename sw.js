@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iac-v74';
+const CACHE_NAME = 'iac-v91';
 const ASSETS = [
   './',
   './index.html',

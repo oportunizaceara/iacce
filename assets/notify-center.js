@@ -24,11 +24,26 @@
   function unread() { return list().filter((item) => item.read !== true).length; }
 
   function badge() {
+    if (typeof global.updateNotificationsBadge === 'function') {
+      global.updateNotificationsBadge();
+      return;
+    }
     const node = document.getElementById('iac-inbox-badge');
     if (!node) return;
     const count = unread();
     node.textContent = count > 99 ? '99+' : String(count);
     node.classList.toggle('hidden', count === 0);
+  }
+
+  function entries() {
+    const allowed = prefs();
+    return list().filter((item) => {
+      if (item.read === true) return false;
+      if (item.category === 'demandas' && !allowed.demands) return false;
+      if (item.category === 'calendario' && !allowed.calendar) return false;
+      if (item.category === 'equipe' && !allowed.team) return false;
+      return true;
+    });
   }
 
   function watch() {
@@ -162,7 +177,20 @@
     data().toast('Preferências salvas.', 'success');
   }
 
-  function open() { state.open = !state.open; renderPanel(); }
+  function open() {
+    if (typeof global.openNotificationsModal === 'function') {
+      global.openNotificationsModal();
+      return;
+    }
+    state.open = !state.open;
+    renderPanel();
+  }
+
+  function openItem(id) {
+    const item = state.items[id];
+    if (!item) return;
+    openRelated(Object.assign({ id: id }, item));
+  }
 
   async function once(recipient, id, payload) {
     if (!recipient) return;
@@ -244,6 +272,6 @@
   document.addEventListener('iac-calendar', renderSummary);
   document.addEventListener('iac-directory', renderSummary);
 
-  global.IACNotify = { push, open, renderSummary, scanDeadlines, unread };
+  global.IACNotify = { push, open, renderSummary, scanDeadlines, unread, entries, openItem, dismiss: (id) => mark(id, true), markAll };
   global.IACOps = { renderSummary };
 })(window);

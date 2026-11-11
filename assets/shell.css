@@ -687,6 +687,12 @@ body.dark .fila-item strong {
   color: #8e8e93;
 }
 
+#cronograma-cards > *,
+#lot-sections > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
 .week-grid {
   display: grid;
   grid-template-columns: 1fr;

@@ -37,6 +37,8 @@ function initialTabName() {
 }
 let lastActiveTab = initialTabName();
 let instructorCourseSearchOpen = false;
+  const instructorBoard = { q: '', area: '', contrato: '', pendencia: '' };
+  const INSTRUCTOR_AREAS = ['Gastronomia', 'Maquiagem', 'Penteado', 'Alongamento de unha', 'Eletricista', 'Pintura industrial', 'Outra'];
 
   function instructorEditGuard() {
     if (typeof window.requireInstructorEditAccess === 'function') return window.requireInstructorEditAccess();
@@ -109,7 +111,16 @@ let instructorCourseSearchOpen = false;
 
   function closeCourseModal() {
     const modal = document.getElementById('course-modal');
-    if (modal) modal.classList.add('hidden');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('is-open', 'is-closing');
+    document.body.classList.remove('modal-open');
+  }
+
+  function finishCourseModalClose(modal) {
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('is-closing');
     document.body.classList.remove('modal-open');
   }
 
@@ -121,15 +132,26 @@ let instructorCourseSearchOpen = false;
     currentCourseSection = 'overview';
     const modal = document.getElementById('course-modal');
     if (modal) {
-      modal.classList.remove('hidden');
+      const already = modal.classList.contains('is-open') && !modal.classList.contains('hidden');
+      modal.classList.remove('hidden', 'is-closing');
       document.body.classList.add('modal-open');
+      if (!already) {
+        modal.classList.remove('is-open');
+        requestAnimationFrame(() => modal.classList.add('is-open'));
+      }
     }
     renderCoursePage(courseId);
   };
 
   window.closeCoursePage = function closeCoursePage() {
+    const modal = document.getElementById('course-modal');
     currentCoursePageId = null;
-    closeCourseModal();
+    if (!modal || modal.classList.contains('hidden') || modal.classList.contains('is-closing')) return;
+    modal.classList.remove('is-open');
+    modal.classList.add('is-closing');
+    const panel = modal.querySelector('.course-modal-panel');
+    if (panel) panel.addEventListener('animationend', () => finishCourseModalClose(modal), { once: true });
+    setTimeout(() => finishCourseModalClose(modal), 360);
   };
 
   function setActiveTabButton(tab) {
@@ -176,43 +198,214 @@ let instructorCourseSearchOpen = false;
     return items;
   }
 
+  function courseAddressText(course) {
+    const street = String(course.endereco || '').trim();
+    const city = String(course.municipio || '').trim();
+    if (!street && !city) return '';
+    if (!street) return city + ' - CE';
+    if (city && street.toLowerCase().indexOf(city.toLowerCase()) === -1) return street + '\n' + city + ' - CE';
+    return street;
+  }
+
+  function courseMapsQuery(course) {
+    const address = courseAddressText(course).replace(/\n/g, ', ');
+    if (!address) return '';
+    return address + ', Ceará, Brasil';
+  }
+
+  function courseProgressPercent(course) {
+    const status = String(course.status || '').toLowerCase();
+    if (status.indexOf('conclu') !== -1) return 100;
+    if (status.indexOf('andamento') !== -1) return 72;
+    if (status.indexOf('breve') !== -1) return 36;
+    if (status.indexOf('atras') !== -1) return 48;
+    return 12;
+  }
+
+  function courseStatusTone(course) {
+    const status = String(course.status || '').toLowerCase();
+    if (status.indexOf('conclu') !== -1) return 'done';
+    if (status.indexOf('andamento') !== -1) return 'live';
+    if (status.indexOf('atras') !== -1) return 'late';
+    return 'soon';
+  }
+
+  function courseNorm(value) {
+    return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function artSvg(body) {
+    return `<svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">${body}</svg>`;
+  }
+
+  function courseIllustration(tipologia) {
+    const name = courseNorm(tipologia);
+    const themes = [
+      [/cilio|sobrancelha|maquiagem|makeup|visagismo/, artSvg('<path d="M39 3c3.4 0 6 2.6 6 6v6H33V9c0-3.4 2.6-6 6-6z"/><path d="M31 17h16v7H31z"/><path d="M33.5 26h11L43 54.5c-.3 2.2-2 3.5-4.5 3.5s-4.2-1.3-4.5-3.5L33.5 26z"/><path fill-rule="evenodd" d="M16 28a12 12 0 1 0 .1 0zM16 34.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/>')],
+      [/unha|alongamento|manicur|acrigel|esmalte/, artSvg('<path d="M6 34c0-14 3.2-22 8-22s8 8 8 22v14c0 7-3.4 12-8 12s-8-5-8-12V34z"/><path d="M25 26c0-14 3.2-22 8-22s8 8 8 22v22c0 7-3.4 12-8 12s-8-5-8-12V26z"/><path d="M44 34c0-14 3.2-22 8-22s8 8 8 22v14c0 7-3.4 12-8 12s-8-5-8-12V34z"/>')],
+      [/penteado|cabelo|cabeleir|tranca|escova|barbear|pente/, artSvg('<path d="M5 12h54c1.4 0 2.2 1.3 1.8 2.6L56 28H8L3.2 14.6C2.8 13.3 3.6 12 5 12z"/><rect x="10" y="28" width="7" height="28" rx="3.5"/><rect x="21" y="28" width="7" height="28" rx="3.5"/><rect x="32" y="28" width="7" height="28" rx="3.5"/><rect x="43" y="28" width="7" height="22" rx="3.5"/><rect x="52" y="28" width="7" height="14" rx="3.5"/>')],
+      [/hambur|sanduich|lanche|burger|cachorro/, artSvg('<path fill-rule="evenodd" d="M6 32C6 19 16.5 10 32 10s26 9 26 22v3H6v-3zM18 24a2.6 2.6 0 1 0 .1 0zM32 21a3 3 0 1 0 .1 0zM46 25a2.4 2.4 0 1 0 .1 0z"/><path d="M8 39h48v6c0 1.6-1.3 2.8-3 2.8H11c-1.7 0-3-1.2-3-2.8v-6z"/><path d="M11 52h42c.6 6.4-8.4 11-21 11S10.4 58.4 11 52z"/>')],
+      [/espet/, artSvg('<rect x="30" y="3" width="4" height="58" rx="2"/><circle cx="32" cy="18" r="8"/><circle cx="32" cy="34" r="8"/><circle cx="32" cy="50" r="7"/>')],
+      [/drinque|coquet|cocktail|barman/, artSvg('<path fill-rule="evenodd" d="M8 6h48L37 34h-10L8 6zm24 12a4 4 0 1 0 .1 0z"/><rect x="30" y="34" width="4" height="16" rx="1"/><rect x="16" y="50" width="32" height="5" rx="2.5"/>')],
+      [/comida de rua|pastel|tapioca|acaraje|salgad|pratinho/, artSvg('<path d="M12 40c1.2-16 8.4-26 20-26s18.8 10 20 26H12z"/><path d="M4 42h56c0 8-11 14-28 14S4 50 4 42z"/><circle cx="32" cy="10" r="3.2"/>')],
+      [/eletrodomest|eletrodom|geladeira|lavadora/, artSvg('<path fill-rule="evenodd" d="M10 4h44a6 6 0 0 1 6 6v46a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V10a6 6 0 0 1 6-6zM32 20a13 13 0 1 0 .1 0z"/>')],
+      [/eletric/, artSvg('<path d="M37 2 11 36h16L22 62l31-40H36L37 2z"/>')],
+      [/costura|roupa|confec|alfaiat|maquina de costura/, artSvg('<rect x="4" y="48" width="56" height="12" rx="3"/><path fill-rule="evenodd" d="M14 48V30h16V16h12c8 0 14 6 14 14v18H14zm30-20a5.5 5.5 0 1 0 .1 0z"/><rect x="28" y="4" width="9" height="12" rx="2"/><rect x="47" y="40" width="3" height="10" rx="1"/>')],
+      [/bijuter|joia|artesanat|micanga|colar/, artSvg('<path fill-rule="evenodd" d="M10 12c.4 16 8.2 26 22 38 13.8-12 21.6-22 22-38-2.2 0-4 .2-4 2.2 0 12-6.6 20-18 28-11.4-8-18-16-18-28 0-2-1.8-2.2-4-2.2z"/><path d="M32 42l8 7-8 13-8-13 8-7z"/>')],
+      [/bike|biciclet|moto/, artSvg('<g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="46" r="11"/><circle cx="49" cy="46" r="11"/><path d="M15 46 28 22h16l5 24M28 22l11 24M44 22l6-10h8"/></g>')],
+      [/vidrac|vidro/, artSvg('<path fill-rule="evenodd" d="M6 6h52v52H6V6zm8 8v16h16V14H14zm22 0v16h16V14H36zM14 36v16h16V36H14zm22 0v16h16V36H36z"/>')],
+      [/gesseir|gesso|reboco/, artSvg('<rect x="6" y="20" width="48" height="16" rx="3"/><rect x="29" y="36" width="6" height="20" rx="3"/>')],
+      [/pedreir|alvenar|tijolo|obra/, artSvg('<rect x="6" y="8" width="24" height="13" rx="2"/><rect x="34" y="8" width="24" height="13" rx="2"/><rect x="6" y="25" width="14" height="13" rx="2"/><rect x="24" y="25" width="16" height="13" rx="2"/><rect x="44" y="25" width="14" height="13" rx="2"/><rect x="6" y="42" width="24" height="13" rx="2"/><rect x="34" y="42" width="24" height="13" rx="2"/>')],
+      [/compost|adubo|horta organica/, artSvg('<rect x="14" y="12" width="36" height="8" rx="3"/><path d="M18 20h28v32c0 6-6 10-14 10s-14-4-14-10V20z"/>')],
+      [/poda|arbori|arvore|paisag/, artSvg('<circle cx="24" cy="28" r="13"/><circle cx="42" cy="26" r="12"/><circle cx="32" cy="16" r="12"/><rect x="29" y="34" width="6" height="20" rx="3"/><path d="M16 54h32v5H16z"/>')],
+      [/jardin|planta|horta|flor/, artSvg('<path d="M32 38C32 18 48 10 54 10c-3 12-10 20-22 28z"/><path d="M32 38C32 18 16 10 10 10c3 12 10 20 22 28z"/><path d="M17 36h30l-4 20H21L17 36z"/><rect x="15" y="33" width="34" height="6" rx="2"/>')],
+      [/pintur|pintor/, artSvg('<rect x="12" y="6" width="42" height="16" rx="5"/><rect x="18" y="22" width="6" height="16" rx="2"/><path d="M8 38h26c2 0 3 1.6 3 3.4v2.2c0 2.4-2 4.4-4.4 4.4H12c-3.2 0-6-2.4-6-5.4v-.8c0-2 1-3.8 2-3.8z"/>')],
+      [/informat|computador|excel|digit/, artSvg('<path fill-rule="evenodd" d="M7 10h50a3 3 0 0 1 3 3v30H4V13a3 3 0 0 1 3-3zm7 7h36v18H14V17z"/><path d="M0 46h64l-5 10H5L0 46z"/>')],
+      [/sopa|caldo|gastronom|culinari|bolo|doce|pizza|comida|confeit|panific|consume/, artSvg('<ellipse cx="32" cy="24" rx="24" ry="7"/><path d="M8 26h48c0 16-10 30-24 30S8 42 8 26z"/>')]
+    ];
+    const found = themes.find(([pattern]) => pattern.test(name));
+    return found ? found[1] : artSvg('<path fill-rule="evenodd" d="M8 10h48v44H8V10zm8 10h32v5H16v-5zm0 12h22v5H16v-5zm0 12h16v5H16v-5z"/>');
+  }
+
+  function mountCourseMap(query) {
+    const host = document.getElementById('course-live-map');
+    if (!host || !query) return;
+    const src = 'https://www.google.com/maps?q=' + encodeURIComponent(query) + '&z=16&output=embed&hl=pt-BR';
+    host.innerHTML = '<iframe title="Mapa do endereço do curso" src="' + src.replace(/"/g, '%22') + '" loading="eager" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
+  }
+
+  function detailIcon(name) {
+    const paths = {
+      info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+      cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+      user: '<circle cx="12" cy="8" r="3"/><path d="M5 19c1.2-3 3.4-4.5 7-4.5S17.8 16 19 19"/>',
+      check: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+      note: '<path d="M7 4h8l4 4v12H7z"/><path d="M15 4v4h4M9 12h6M9 16h4"/>',
+      pin: '<path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/>',
+      clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
+      home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/>',
+      people: '<circle cx="9" cy="9" r="2.2"/><circle cx="15" cy="9" r="2.2"/><path d="M4.5 18c.6-2.4 2.4-3.6 4.5-3.6s3.9 1.2 4.5 3.6M13 14.4c2 .1 3.6 1.2 4.5 3.6"/>',
+      cap: '<path d="M3 10l9-5 9 5-9 5-9-5z"/><path d="M7 12.2V16c1.6 1.2 3.2 1.8 5 1.8s3.4-.6 5-1.8v-3.8"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.info}</svg>`;
+  }
+
   function renderCourseSectionContent(course) {
     const canEdit = typeof canEditCourses === 'function' && canEditCourses();
+    const instructorName = course.instrutor || getInstructorName(course.instrutorId) || '';
+    const inst = course.instrutorId ? getInstructorsData()[course.instrutorId] : null;
     const sections = {
-      overview: () => `
-        <div class="course-info-grid">
-          ${infoItem('🏷️', 'Curso', course.tipologia)}
-          ${infoItem('🆔', 'ID', course.idCurso || '-')}
-          ${infoItem('📍', 'Município', course.municipio)}
-          ${infoItem('👤', 'Instrutor', course.instrutor || getInstructorName(course.instrutorId) || '-')}
-          ${infoItem('📅', 'Período', `${course.dataInicio ? formatDate(course.dataInicio) : '?'} → ${course.dataFim ? formatDate(course.dataFim) : '?'}`)}
-          ${infoItem('⏱️', 'Carga Horária', `${course.cargaHoraria || '-'}h`)}
-          ${infoItem('📦', 'Lote', course.lote)}
-          ${infoItem('🏠', 'Cozinha', course.cozinha || '-')}
-          ${infoItem('📫', 'Endereço', course.endereco || '-')}
-          ${infoItem('👥', 'Concludentes', course.concludentes ?? '-')}
-        </div>`,
-      checklist: () => `
-        <div class="course-section-panel">
-          <button onclick="openTarefasChecklistModal('${course.id}')" class="course-link-btn">✅ Abrir checklist completo</button>
-        </div>`,
-      timeline: () => {
+      cronograma: () => {
         const items = getCourseTimeline(course);
-        return `<div class="course-timeline">${items.map(i => `
+        if (!items.length) return '<p class="cdetail-empty">Nenhuma data registrada neste curso.</p>';
+        return `<div class="course-timeline">${items.map((item) => `
           <div class="course-timeline-item">
-            <span class="course-timeline-dot">${i.icon}</span>
-            <div><strong>${escapeHtml(i.label)}</strong>${i.date ? `<br><small>${formatDate(i.date)}</small>` : ''}</div>
+            <span class="course-timeline-dot">${item.icon}</span>
+            <div><strong>${escapeHtml(item.label)}</strong>${item.date ? `<br><small>${formatDate(item.date)}</small>` : ''}</div>
           </div>`).join('')}</div>`;
       },
+      instrutor: () => instructorName ? `
+        <div class="cdetail-person">
+          <span class="cdetail-person-avatar">${escapeHtml(instructorName.charAt(0))}</span>
+          <div>
+            <strong>${escapeHtml(instructorName)}</strong>
+            <small>${escapeHtml(inst && inst.area ? inst.area : 'Instrutor vinculado')}</small>
+            ${inst && inst.telefone ? `<small>${escapeHtml(inst.telefone)}</small>` : ''}
+          </div>
+          ${course.instrutorId ? `<button type="button" class="course-link-btn course-link-btn--outline" onclick="closeCoursePage(); openInstructorPage('${course.instrutorId}')">Abrir cadastro</button>` : ''}
+        </div>` : '<p class="cdetail-empty">Nenhum instrutor vinculado.</p>',
+      checklist: () => `
+        <div class="course-section-panel">
+          <button onclick="openTarefasChecklistModal('${course.id}')" class="course-link-btn">Abrir checklist completo</button>
+        </div>`,
       observacoes: () => `
         <div class="course-section-panel">
           ${canEdit
             ? `<textarea id="course-obs-input" class="w-full p-4 rounded-xl border" rows="5" placeholder="Observações...">${escapeHtml(course.observacoes || '')}</textarea>
-               <button onclick="saveCourseObservacoes('${course.id}')" class="course-link-btn mt-3">💾 Salvar observações</button>`
+               <button onclick="saveCourseObservacoes('${course.id}')" class="course-link-btn mt-3">Salvar observações</button>`
             : `<p>${escapeHtml(course.observacoes || 'Sem observações.')}</p>`}
         </div>`
     };
-    return (sections[currentCourseSection] || sections.overview)();
+    const render = sections[currentCourseSection];
+    if (!render) return '';
+    return `<div class="cdetail-section"><h3>${escapeHtml(currentCourseSection === 'cronograma' ? 'Cronograma' : currentCourseSection === 'instrutor' ? 'Instrutor' : currentCourseSection === 'checklist' ? 'Checklist' : 'Observações')}</h3>${render()}</div>`;
+  }
+
+  function renderCourseOverview(course) {
+    const canEdit = typeof canEditCourses === 'function' && canEditCourses();
+    const logged = iacIsLoggedIn();
+    const instructorName = course.instrutor || getInstructorName(course.instrutorId) || 'Não informado';
+    const periodStart = course.dataInicio ? formatDate(course.dataInicio) : '—';
+    const periodEnd = course.dataFim ? formatDate(course.dataFim) : '—';
+    const hours = course.cargaHoraria ? course.cargaHoraria + 'h' : '—';
+    const kitchen = course.cozinha || '—';
+    const address = courseAddressText(course);
+    const query = courseMapsQuery(course);
+    const mapHref = query ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query) : '';
+    const percent = courseProgressPercent(course);
+    const tone = courseStatusTone(course);
+    const students = course.concludentes != null && course.concludentes !== '' ? course.concludentes : '—';
+    const status = course.status || 'Pendente';
+    const note = String(course.observacoes || '').trim();
+    const art = courseIllustration(course.tipologia);
+    return `
+      <header class="cdetail-banner">
+        <span class="cdetail-logo">${art}</span>
+        <div class="cdetail-banner-text">
+          <h1>${escapeHtml(course.tipologia || 'Curso')}</h1>
+          <div class="cdetail-banner-meta">
+            <span class="cdetail-pill cdetail-pill--${tone}">${escapeHtml(status)}</span>
+            <span>ID: ${escapeHtml(course.idCurso || '—')}</span>
+          </div>
+        </div>
+        <div class="cdetail-actions">
+          ${canEdit ? `<button type="button" class="cdetail-btn cdetail-btn--tiny ${course.turmaFormada ? 'is-on' : ''}" onclick="toggleTurmaFormada('${course.id}')">${course.turmaFormada ? 'Turma formada' : 'Formar turma'}</button>` : ''}
+          ${canEdit ? `<button type="button" class="cdetail-btn" onclick="openCronogramaCourseModal('${course.id}')">${detailIcon('note')} Editar</button>` : ''}
+          ${logged ? `<button type="button" class="cdetail-btn" onclick="viewCourseOnCalendar('${course.id}')">${detailIcon('cal')} Calendário</button>` : ''}
+          <button type="button" class="cdetail-x" onclick="closeCoursePage()" aria-label="Fechar">×</button>
+        </div>
+        <span class="cdetail-scene" aria-hidden="true">${art}</span>
+      </header>
+      <div class="cdetail-body">
+        <div class="cdetail-facts">
+          <article><span class="cdetail-fact-icon">${detailIcon('user')}</span><div><small>Instrutor(a)</small><strong>${escapeHtml(instructorName)}</strong></div></article>
+          <article><span class="cdetail-fact-icon cdetail-fact-icon--blue">${detailIcon('cal')}</span><div><small>Período</small><strong>${escapeHtml(periodStart)} → ${escapeHtml(periodEnd)}</strong></div></article>
+          <article><span class="cdetail-fact-icon cdetail-fact-icon--green">${detailIcon('clock')}</span><div><small>Carga horária</small><strong>${escapeHtml(hours)}</strong></div></article>
+          <article><span class="cdetail-fact-icon cdetail-fact-icon--amber">${detailIcon('home')}</span><div><small>Cozinha</small><strong>${escapeHtml(kitchen)}</strong></div></article>
+        </div>
+        <div class="cdetail-stage">
+          <section class="cdetail-address">
+            <div class="cdetail-address-copy">
+              <h3>${detailIcon('pin')} Endereço</h3>
+              <p>${address ? escapeHtml(address).replace(/\n/g, '<br>') : 'Endereço ainda não cadastrado.'}</p>
+              ${mapHref ? `<a class="cdetail-map-link" href="${escapeHtml(mapHref)}" target="_blank" rel="noopener">${detailIcon('pin')} Ver no mapa</a>` : ''}
+            </div>
+            <div class="cdetail-map" id="course-live-map">
+              ${query ? '' : '<div class="cdetail-map-empty">O mapa aparece quando o endereço do curso for cadastrado.</div>'}
+            </div>
+          </section>
+          <article class="cdetail-status">
+            <h3>Status do curso</h3>
+            <div class="cdetail-ring cdetail-ring--${tone}" style="--p:${percent}"><span>${percent}%</span></div>
+            <small>${escapeHtml(status)}</small>
+          </article>
+        </div>
+        <div class="cdetail-chips">
+          <div><span class="cdetail-fact-icon">${detailIcon('people')}</span><div><strong>${escapeHtml(students)}</strong><small>Concludentes</small></div></div>
+          <div><span class="cdetail-fact-icon cdetail-fact-icon--amber">${detailIcon('info')}</span><div><strong>${escapeHtml(course.lote || '—')}</strong><small>Lote</small></div></div>
+          <div><span class="cdetail-fact-icon cdetail-fact-icon--blue">${detailIcon('cal')}</span><div><strong>${course.dataFim ? formatDate(course.dataFim) : '—'}</strong><small>Conclusão prevista</small></div></div>
+          <div><span class="cdetail-fact-icon cdetail-fact-icon--green">${detailIcon('clock')}</span><div><strong>${escapeHtml(course.turno || '—')}</strong><small>Turno</small></div></div>
+          <div><span class="cdetail-fact-icon">${detailIcon('pin')}</span><div><strong>${escapeHtml(course.municipio || '—')}</strong><small>Município</small></div></div>
+        </div>
+        ${(note || canEdit) ? `
+          <section class="cdetail-note">
+            <h3>Observações</h3>
+            ${canEdit
+              ? `<textarea id="course-obs-input" rows="2" placeholder="Observações...">${escapeHtml(note)}</textarea>
+                 <button type="button" class="cdetail-btn cdetail-btn--line cdetail-btn--save" onclick="saveCourseObservacoes('${course.id}')">Salvar</button>`
+              : `<p>${escapeHtml(note)}</p>`}
+          </section>` : ''}
+      </div>`;
   }
 
   function getWhatsAppLink(telefone) {
@@ -267,41 +460,17 @@ let instructorCourseSearchOpen = false;
       return;
     }
 
-    const statusClass = typeof getStatusClass === 'function' ? getStatusClass(course.status) : 'pending';
+    container.innerHTML = `<div class="cdetail">${renderCourseOverview(course)}</div>`;
+    mountCourseMap(courseMapsQuery(course));
+  };
 
-    const restrictedSections = ['checklist', 'timeline', 'observacoes'];
-    if (!iacIsLoggedIn() && restrictedSections.includes(currentCourseSection)) {
-      currentCourseSection = 'overview';
+  window.viewCourseOnCalendar = function viewCourseOnCalendar(courseId) {
+    const course = getCourseById(courseId);
+    if (course && course.dataInicio && window.IACCalendar && typeof window.IACCalendar.focus === 'function') {
+      window.IACCalendar.focus(course.dataInicio);
     }
-
-    const sections = [['overview', '📋', 'Visão geral']];
-    if (iacIsLoggedIn()) {
-      sections.push(
-        ['checklist', '✅', 'Checklist'],
-        ['timeline', '🕐', 'Timeline'],
-        ['observacoes', '📝', 'Observações']
-      );
-    }
-
-    container.innerHTML = `
-      <div class="course-page-header card-elegant">
-        <button type="button" onclick="closeCoursePage()" class="course-back-btn">✕ Fechar</button>
-        <div class="course-page-title">
-          <h1>${escapeHtml(course.tipologia)}</h1>
-          <span class="status-badge ${statusClass} status-badge--dot">${escapeHtml(course.status || 'Pendente')}</span>
-          ${course.turmaFormada ? '<span class="status-badge in-progress">Turma formada</span>' : ''}
-        </div>
-        ${typeof canEditCourses === 'function' && canEditCourses() ? `
-          <button onclick="openCronogramaCourseModal('${course.id}')" class="course-link-btn course-link-btn--outline">✏️ Editar</button>
-          <button type="button" onclick="event.stopPropagation(); toggleTurmaFormada('${course.id}')" class="course-link-btn course-link-btn--outline">🏁 Turma formada</button>
-        ` : ''}
-      </div>
-      <nav class="course-section-nav">
-        ${sections.map(([id, icon, label]) => `
-          <button class="course-section-btn ${currentCourseSection === id ? 'active' : ''}" onclick="setCourseSection('${id}')">${icon} ${label}</button>
-        `).join('')}
-      </nav>
-      <div class="course-section-content card-elegant page-enter">${renderCourseSectionContent(course)}</div>`;
+    closeCoursePage();
+    if (typeof switchTab === 'function') switchTab('calendario');
   };
 
   window.saveCourseObservacoes = async function saveCourseObservacoes(courseId) {
@@ -342,32 +511,94 @@ let instructorCourseSearchOpen = false;
     }
   }
 
+  function contractLabel(tipo) {
+    return tipo === 'nf' || tipo === 'terceirizado' ? 'NF avulsa' : 'MEI';
+  }
+
+  function contractKey(tipo) {
+    return tipo === 'nf' || tipo === 'terceirizado' ? 'nf' : 'mei';
+  }
+
+  function paymentAmount(valor) {
+    const num = parseFloat(String(valor ?? '').replace(/[^\d,.-]/g, '').replace(',', '.'));
+    return Number.isFinite(num) ? num : 0;
+  }
+
+  function money(valor) {
+    return paymentAmount(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function instructorCourses(inst) {
+    return iacCourses().filter((course) => course.instrutorId === inst.id || (inst.nome && course.instrutor === inst.nome));
+  }
+
+  function isFinishedCourse(course) {
+    const status = String((course && course.status) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return status.indexOf('conclu') !== -1;
+  }
+
+  function paymentRecord(inst, courseId) {
+    return (inst.pagamentos || []).find((item) => item && item.courseId === courseId) || null;
+  }
+
+  function instructorFinished(inst) {
+    return instructorCourses(inst)
+      .filter(isFinishedCourse)
+      .sort((a, b) => String(b.dataFim || b.dataInicio || '').localeCompare(String(a.dataFim || a.dataInicio || '')));
+  }
+
+  function instructorPending(inst) {
+    return instructorFinished(inst).filter((course) => !(paymentRecord(inst, course.id) || {}).pago);
+  }
+
+  window.setInstructorBoard = function setInstructorBoard(key, value) {
+    instructorBoard[key] = value || '';
+    renderInstructorsList();
+  };
+
   window.renderInstructorsList = function renderInstructorsList() {
     const el = document.getElementById('instructors-list');
+    const summary = document.getElementById('instructors-summary');
+    const filters = document.getElementById('instructors-filters');
     if (!el) return;
-    const list = Object.values(getInstructorsData());
-    if (!list.length) {
+    const all = Object.values(getInstructorsData());
+    const pendingAll = all.reduce((sum, inst) => sum + instructorPending(inst).length, 0);
+    if (summary) {
+      summary.innerHTML = `
+        <div class="inst-stat"><strong>${all.length}</strong><span>Instrutores</span></div>
+        <div class="inst-stat"><strong>${pendingAll}</strong><span>Pendências</span></div>`;
+    }
+    if (filters) filters.innerHTML = '';
+    const list = all.slice().sort((a, b) => {
+      const diff = instructorPending(b).length - instructorPending(a).length;
+      return diff || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
+    if (!all.length) {
       el.innerHTML = '<div class="card-elegant p-8 text-center text-muted">Nenhum instrutor cadastrado.</div>';
       return;
     }
+    if (!list.length) {
+      el.innerHTML = '<div class="card-elegant p-8 text-center text-muted">Nenhum instrutor com esse filtro.</div>';
+      return;
+    }
+    const canEdit = typeof window.canEditInstructors === 'function' && window.canEditInstructors();
     el.innerHTML = list.map((inst) => {
-      const coursesCount = iacCourses().filter(c => c.instrutorId === inst.id || c.instrutor === inst.nome).length;
-      const pendingPay = (inst.pagamentos || []).filter((p) => !p.pago).length;
-      const tipo = inst.tipoContrato === 'terceirizado' ? 'Terceirizado' : 'MEI';
-      const canEdit = typeof window.canEditInstructors === 'function' && window.canEditInstructors();
+      const coursesCount = instructorCourses(inst).length;
+      const pendingPay = instructorPending(inst).length;
       const pendingClass = pendingPay > 0 ? ' instructor-card--has-pending' : '';
-      return `<div class="instructor-card card-elegant status-card--${inst.ativo !== false ? 'green' : 'yellow'}${pendingClass}" onclick="openInstructorPage('${inst.id}')">
+      return `<div class="instructor-card card-elegant${pendingClass}" onclick="openInstructorPage('${inst.id}')">
         ${pendingPay > 0 ? `<span class="instructor-pending-dot" title="Pagamentos pendentes">${pendingPay}</span>` : ''}
         ${canEdit ? `<button type="button" class="instructor-card-del-btn" title="Excluir instrutor" onclick="event.stopPropagation(); deleteInstructor('${inst.id}')">×</button>` : ''}
         <div class="instructor-card-header">
-          <span class="instructor-avatar">${(inst.nome || '?')[0]}</span>
+          <span class="instructor-avatar">${escapeHtml((inst.nome || '?')[0])}</span>
           <div class="instructor-card-title">
             <h3>${escapeHtml(inst.nome)}</h3>
-            <small>${tipo} · ${coursesCount} turma(s)</small>
+            <small>${escapeHtml(inst.area || 'Área não informada')} · ${contractLabel(inst.tipoContrato)}</small>
           </div>
         </div>
         <div class="instructor-card-meta">
           ${instructorPhoneMeta(inst.telefone)}
+          <span>${coursesCount} turma(s)${pendingPay ? ` · ${pendingPay} pendência(s)` : ' · em dia'}</span>
         </div>
       </div>`;
     }).join('');
@@ -417,67 +648,97 @@ let instructorCourseSearchOpen = false;
     const inst = getInstructorsData()[id];
     if (!el || !inst) return;
 
-    const taught = iacCourses().filter(c => c.instrutorId === id || c.instrutor === inst.nome);
-    const pagamentos = inst.pagamentos || [];
-
+    const taught = instructorCourses(inst)
+      .sort((a, b) => String(b.dataInicio || '').localeCompare(String(a.dataInicio || '')));
+    const finished = instructorFinished(inst).sort((a, b) => {
+      const ap = (paymentRecord(inst, a.id) || {}).pago ? 1 : 0;
+      const bp = (paymentRecord(inst, b.id) || {}).pago ? 1 : 0;
+      return ap - bp;
+    });
+    const pending = instructorPending(inst);
+    const paid = finished.filter((course) => (paymentRecord(inst, course.id) || {}).pago);
+    const tipos = [...new Set(taught.map((course) => course.tipologia).filter(Boolean))];
     const canEdit = typeof window.canEditInstructors === 'function' && window.canEditInstructors();
+    const wa = getWhatsAppLink(inst.telefone);
 
     el.innerHTML = `
-      <div class="course-page-header card-elegant">
-        <button type="button" onclick="backToInstructorsList()" class="course-back-btn">← Instrutores</button>
-        <div class="course-page-title">
-          <h1>${escapeHtml(inst.nome)}</h1>
-          <span class="status-badge ${inst.tipoContrato === 'terceirizado' ? 'delayed' : 'in-progress'}">${inst.tipoContrato === 'terceirizado' ? 'Terceirizado' : 'MEI'}</span>
-        </div>
-        ${canEdit ? `<div class="instructor-page-actions">
-          <button type="button" onclick="openInstructorModal('${id}')" class="course-link-btn course-link-btn--outline">✏️ Editar</button>
-          <button type="button" onclick="deleteInstructor('${id}')" class="instructor-card-del-btn instructor-page-del-btn" title="Excluir instrutor">×</button>
-        </div>` : ''}
-      </div>
-      <div class="course-info-grid card-elegant mb-4">
-        ${phoneInfoItem(inst.telefone)}
-        ${infoItem('📄', 'CPF', inst.cpf)}
-        ${infoItem('📚', 'Cursos', taught.length)}
-      </div>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="card-elegant p-5">
-          <div class="instructor-section-header">
-            <h3 class="section-title-sm">📚 Cursos ministrados</h3>
-            ${canEdit ? `<button type="button" class="instructor-icon-btn" onclick="toggleInstructorCourseSearch('${id}')" title="Buscar e vincular curso">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </button>` : ''}
+      <article class="iprof">
+        <header class="iprof-banner">
+          <button type="button" class="iprof-back" onclick="backToInstructorsList()" aria-label="Voltar">←</button>
+          <span class="iprof-avatar">${escapeHtml((inst.nome || '?')[0])}</span>
+          <div class="iprof-id">
+            <h1>${escapeHtml(inst.nome || 'Instrutor')}</h1>
+            <div class="iprof-pills">
+              <span>${escapeHtml(inst.area || 'Área não informada')}</span>
+              <span class="iprof-pill">${contractLabel(inst.tipoContrato)}</span>
+            </div>
           </div>
-          ${canEdit && instructorCourseSearchOpen ? `
-            <div class="instructor-course-search-wrap">
-              <input type="text" id="instructor-course-search" placeholder="ID do curso..." oninput="filterInstructorCourses('${id}')" class="instructor-course-search">
-              <div id="instructor-course-picker" class="instructor-course-picker hidden"></div>
-            </div>` : ''}
-          ${taught.length ? taught.map(c => `
-            <div class="list-item-row instructor-course-row">
-              <div class="instructor-course-info" onclick="openCoursePage('${c.id}')">
-                <strong>${escapeHtml(c.tipologia)}</strong>
-                <small>ID: ${escapeHtml(c.idCurso || '-')} · ${c.dataInicio ? formatDate(c.dataInicio) : '?'} → ${c.dataFim ? formatDate(c.dataFim) : '?'}</small>
-              </div>
-              ${canEdit ? `<button type="button" onclick="unlinkCourseFromInstructor('${id}','${c.id}')" class="instructor-del-btn" title="Desvincular">×</button>` : ''}
-            </div>`).join('') : '<p class="text-muted">Nenhum curso vinculado.</p>'}
+          ${canEdit ? `<div class="iprof-actions">
+            <button type="button" onclick="openInstructorModal('${id}')">Editar</button>
+            <button type="button" class="iprof-danger" onclick="deleteInstructor('${id}')" aria-label="Excluir">×</button>
+          </div>` : ''}
+        </header>
+        <div class="iprof-facts">
+          <article><small>Telefone</small><strong>${escapeHtml(inst.telefone || '—')}</strong>${wa ? `<a href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</article>
+          <article><small>E-mail</small><strong>${escapeHtml(inst.email || '—')}</strong></article>
+          <article><small>CPF</small><strong>${escapeHtml(inst.cpf || '—')}</strong></article>
+          <article><small>Turmas</small><strong>${taught.length}</strong></article>
         </div>
-        <div class="card-elegant p-5">
-          <h3 class="section-title-sm mb-3">💰 Pagamentos</h3>
-          ${pagamentos.length ? pagamentos.map((p, i) => `
-            <div class="list-item-row instructor-pagamento-row">
-              <div class="instructor-pagamento-info">
-                <strong>${escapeHtml(p.descricao || 'Turma')}</strong>
-                <small>${p.data || '-'} · ${formatPagamentoValor(p.valor)}</small>
-              </div>
-              <div class="instructor-pagamento-actions">
-                <button type="button" onclick="toggleInstructorPagamento('${id}',${i})" class="status-badge ${p.pago ? 'completed' : 'pending'}">${p.pago ? 'Pago ✓' : 'Pendente'}</button>
-                ${canEdit ? `<button type="button" onclick="removeInstructorPagamento('${id}',${i})" class="instructor-del-btn" title="Excluir">×</button>` : ''}
-              </div>
-            </div>`).join('') : '<p class="text-muted">Nenhum pagamento registrado.</p>'}
-          ${canEdit ? `<button onclick="addInstructorPagamento('${id}')" class="course-link-btn course-link-btn--outline mt-3">+ Registrar pagamento</button>` : ''}
+        <div class="iprof-grid">
+          <section class="iprof-panel">
+            <div class="instructor-section-header">
+              <h2>Cursos ministrados</h2>
+              ${canEdit ? `<button type="button" class="instructor-icon-btn" onclick="toggleInstructorCourseSearch('${id}')" title="Vincular turma">+</button>` : ''}
+            </div>
+            ${tipos.length ? `<div class="iprof-types">${tipos.map((tipo) => `<span>${escapeHtml(tipo)}</span>`).join('')}</div>` : '<p class="iprof-empty">Nenhum curso vinculado.</p>'}
+            ${canEdit && instructorCourseSearchOpen ? `
+              <div class="instructor-course-search-wrap">
+                <input type="text" id="instructor-course-search" placeholder="ID ou nome do curso" oninput="filterInstructorCourses('${id}')" class="instructor-course-search">
+                <div id="instructor-course-picker" class="instructor-course-picker hidden"></div>
+              </div>` : ''}
+            <h2 class="iprof-sub">Histórico de turmas</h2>
+            ${taught.length ? taught.map((course) => `
+              <div class="iprof-row">
+                <button type="button" class="iprof-row-main" onclick="openCoursePage('${course.id}')">
+                  <strong>${escapeHtml(course.tipologia || 'Curso')}</strong>
+                  <small>ID ${escapeHtml(course.idCurso || '—')} · ${course.dataInicio ? formatDate(course.dataInicio) : '?'} → ${course.dataFim ? formatDate(course.dataFim) : '?'} · ${escapeHtml(course.municipio || '—')}</small>
+                </button>
+                <span class="status-badge ${courseStatusBadge(course.status)}">${escapeHtml(course.status || 'Pendente')}</span>
+                ${canEdit ? `<button type="button" onclick="unlinkCourseFromInstructor('${id}','${course.id}')" class="instructor-del-btn" title="Desvincular">×</button>` : ''}
+              </div>`).join('') : '<p class="iprof-empty">Nenhuma turma no histórico.</p>'}
+          </section>
+          <section class="iprof-panel">
+            <h2>Pagamentos</h2>
+            <div class="iprof-pay-sum">
+              <span><b>${pending.length}</b> pendentes</span>
+              <span><b>${paid.length}</b> pagos</span>
+            </div>
+            ${finished.length ? finished.map((course) => {
+              const pago = !!(paymentRecord(inst, course.id) || {}).pago;
+              const mark = canEdit
+                ? `<button type="button" onclick="toggleInstructorPagamento('${id}','${course.id}')" class="status-badge ${pago ? 'completed' : 'pending'}">${pago ? 'Pago' : 'Pendente'}</button>`
+                : `<span class="status-badge ${pago ? 'completed' : 'pending'}">${pago ? 'Pago' : 'Pendente'}</span>`;
+              return `
+              <div class="iprof-row ${pago ? '' : 'is-pending'}">
+                <button type="button" class="iprof-row-main" onclick="openCoursePage('${course.id}')">
+                  <strong>${escapeHtml(course.tipologia || 'Turma')}</strong>
+                  <small>ID ${escapeHtml(course.idCurso || '—')} · ${course.dataFim ? formatDate(course.dataFim) : '—'} · ${escapeHtml(course.municipio || '—')}</small>
+                </button>
+                ${mark}
+              </div>`;
+            }).join('') : '<p class="iprof-empty">Nenhuma turma finalizada para este instrutor.</p>'}
+          </section>
         </div>
-      </div>`;
+      </article>`;
   };
+
+  function courseStatusBadge(status) {
+    const name = String(status || '').toLowerCase();
+    if (name.indexOf('conclu') !== -1) return 'completed';
+    if (name.indexOf('andamento') !== -1) return 'in-progress';
+    if (name.indexOf('atras') !== -1) return 'delayed';
+    return 'pending';
+  }
 
   /* open/close modal: instructors-boot.js */
 
@@ -497,7 +758,9 @@ let instructorCourseSearchOpen = false;
       ...existing,
       id,
       nome,
+      area: document.getElementById('instructor-area')?.value || '',
       telefone: document.getElementById('instructor-telefone').value.trim(),
+      email: document.getElementById('instructor-email')?.value.trim() || '',
       cpf: document.getElementById('instructor-cpf').value.trim(),
       tipoContrato: document.getElementById('instructor-tipo').value,
       contratos: existing.contratos || [],
@@ -517,35 +780,30 @@ let instructorCourseSearchOpen = false;
     showToast('Instrutor salvo!', 'success');
   };
 
-  window.addInstructorPagamento = function addInstructorPagamento(id) {
-    if (!instructorEditGuard()) return;
-    const desc = prompt('Descrição (ex: Turma X):');
-    const valor = prompt('Valor (R$):');
-    if (!desc) return;
-    const inst = getInstructorsData()[id];
-    inst.pagamentos = inst.pagamentos || [];
-    inst.pagamentos.push({ descricao: desc, valor: valor || '', data: new Date().toLocaleDateString('pt-BR'), pago: false });
-    if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
-    renderInstructorPage(id);
-  };
-
-  window.toggleInstructorPagamento = function toggleInstructorPagamento(id, index) {
+  window.toggleInstructorPagamento = function toggleInstructorPagamento(id, courseId) {
     if (!instructorEditGuard()) return;
     const inst = getInstructorsData()[id];
-    if (!inst?.pagamentos?.[index]) return;
-    inst.pagamentos[index].pago = !inst.pagamentos[index].pago;
+    const course = getCourseById(courseId);
+    if (!inst || !course || !isFinishedCourse(course)) return;
+    inst.pagamentos = Array.isArray(inst.pagamentos) ? inst.pagamentos : [];
+    let item = inst.pagamentos.find((entry) => entry && entry.courseId === courseId);
+    if (!item) {
+      item = {
+        id: 'pay-' + courseId,
+        courseId,
+        descricao: (course.tipologia || 'Turma') + (course.idCurso ? ' · ' + course.idCurso : ''),
+        valor: '',
+        data: new Date().toLocaleDateString('pt-BR'),
+        pago: false,
+        origem: 'turma-concluida',
+        municipio: course.municipio || ''
+      };
+      inst.pagamentos.unshift(item);
+    }
+    item.pago = !item.pago;
     if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
     renderInstructorPage(id);
-  };
-
-  window.removeInstructorPagamento = function removeInstructorPagamento(id, index) {
-    if (!instructorEditGuard()) return;
-    const inst = getInstructorsData()[id];
-    if (!inst?.pagamentos?.[index]) return;
-    if (!confirm('Excluir este pagamento?')) return;
-    inst.pagamentos.splice(index, 1);
-    if (typeof window.saveInstructorsToFirebase === 'function') window.saveInstructorsToFirebase(getInstructorsData());
-    renderInstructorPage(id);
+    if (typeof window.renderInstructorsList === 'function') window.renderInstructorsList();
   };
 
   window.toggleInstructorCourseSearch = function toggleInstructorCourseSearch(id) {

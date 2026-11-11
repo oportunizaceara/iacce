@@ -531,6 +531,15 @@
     render,
     events: function () { return eventList(); },
     entriesOn,
+    focus: function (dateKey) {
+      const date = parseKey(String(dateKey || '').slice(0, 10));
+      if (date) {
+        state.cursor = date;
+        state.mode = 'month';
+      }
+      const host = document.getElementById('content-calendario');
+      if (host && !host.classList.contains('hidden')) render();
+    },
     todayCount: function () { return entriesOn(keyOf(new Date())).length; }
   };
 })(window);

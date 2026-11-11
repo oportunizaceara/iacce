@@ -54,6 +54,62 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       return status === 'concluído' || status === 'concluido' || status === 'concluida' || status === 'concluída';
     }
 
+    function syncCourseInstructorLink(course) {
+      if (!course) return;
+      const data = window.instructors && typeof window.instructors === 'object' ? window.instructors : {};
+      const name = String(course.instrutor || '').trim().toLowerCase();
+      if (!name) {
+        course.instrutorId = null;
+        return;
+      }
+      const match = Object.values(data).find((inst) => String((inst && inst.nome) || '').trim().toLowerCase() === name);
+      if (match) {
+        course.instrutorId = match.id;
+        course.instrutor = match.nome;
+        return;
+      }
+      const current = course.instrutorId && data[course.instrutorId];
+      if (current && String(current.nome || '').trim().toLowerCase() !== name) course.instrutorId = null;
+    }
+
+    function findInstructorForCourse(course) {
+      const data = window.instructors && typeof window.instructors === 'object' ? window.instructors : {};
+      if (course && course.instrutorId && data[course.instrutorId]) return data[course.instrutorId];
+      const name = String((course && course.instrutor) || '').trim().toLowerCase();
+      if (!name) return null;
+      return Object.values(data).find((inst) => String(inst.nome || '').trim().toLowerCase() === name) || null;
+    }
+
+    async function createInstructorPaymentPending(course, previousStatus) {
+      if (!course || !isCourseConcluido(course) || isCourseConcluido({ status: previousStatus })) return false;
+      const inst = findInstructorForCourse(course);
+      if (!inst) {
+        showToast('Turma concluída sem instrutor vinculado. Nenhuma pendência foi criada.', 'info', 5000);
+        return false;
+      }
+      syncCourseInstructorLink(course);
+      if (!course.instrutorId) course.instrutorId = inst.id;
+      if (!course.instrutor) course.instrutor = inst.nome;
+      inst.pagamentos = Array.isArray(inst.pagamentos) ? inst.pagamentos : [];
+      if (inst.pagamentos.some((item) => item && item.courseId === course.id)) return false;
+      inst.pagamentos.unshift({
+        id: 'pay-' + course.id,
+        courseId: course.id,
+        descricao: (course.tipologia || 'Turma') + (course.idCurso ? ' · ' + course.idCurso : ''),
+        valor: '',
+        data: new Date().toLocaleDateString('pt-BR'),
+        pago: false,
+        origem: 'turma-concluida',
+        municipio: course.municipio || ''
+      });
+      if (typeof window.saveInstructorsToFirebase === 'function') {
+        await window.saveInstructorsToFirebase(window.instructors);
+      }
+      if (typeof window.refreshInstructorsUI === 'function') window.refreshInstructorsUI();
+      showToast('Pendência de pagamento criada para ' + inst.nome + '.', 'success', 5000);
+      return true;
+    }
+
     function courseClosureGaps(course, draft) {
       const source = course || {};
       const status = draft && draft.status != null ? draft.status : source.status;
@@ -263,19 +319,32 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         return;
       }
       const data = (window.instructors && typeof window.instructors === 'object') ? window.instructors : {};
-      const inst = id && data[id] ? data[id] : { nome: '', telefone: '', cpf: '', tipoContrato: 'mei' };
+      const inst = id && data[id] ? data[id] : { nome: '', telefone: '', email: '', cpf: '', area: '', tipoContrato: 'mei' };
       const title = document.getElementById('instructor-modal-title');
       const editId = document.getElementById('instructor-edit-id');
       const nomeEl = document.getElementById('instructor-nome');
+      const areaEl = document.getElementById('instructor-area');
       const telEl = document.getElementById('instructor-telefone');
+      const emailEl = document.getElementById('instructor-email');
       const cpfEl = document.getElementById('instructor-cpf');
       const tipoEl = document.getElementById('instructor-tipo');
       if (title) title.textContent = id ? 'Editar Instrutor' : 'Novo Instrutor';
       if (editId) editId.value = id || '';
       if (nomeEl) nomeEl.value = inst.nome || '';
+      if (areaEl) {
+        const area = inst.area || '';
+        if (area && !Array.from(areaEl.options).some((option) => option.value === area)) {
+          const extra = document.createElement('option');
+          extra.value = area;
+          extra.textContent = area;
+          areaEl.appendChild(extra);
+        }
+        areaEl.value = area;
+      }
       if (telEl) telEl.value = inst.telefone || '';
+      if (emailEl) emailEl.value = inst.email || '';
       if (cpfEl) cpfEl.value = inst.cpf || '';
-      if (tipoEl) tipoEl.value = inst.tipoContrato || 'mei';
+      if (tipoEl) tipoEl.value = inst.tipoContrato === 'terceirizado' ? 'nf' : (inst.tipoContrato || 'mei');
       modal.classList.remove('hidden');
       modal.style.display = 'flex';
       modal.style.alignItems = 'center';
@@ -322,7 +391,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       { title: 'Dashboard', content: 'Visualize todos os cursos organizados por lote. Use os filtros para encontrar cursos específicos.', target: 'tab-dashboard' },
       { title: 'Cronograma', content: 'Veja os cursos em formato de prateleira. Clique em um card para ver detalhes completos.', target: 'tab-cronograma' },
       { title: 'Tarefas', content: 'Checklist de preparação e acompanhamento das turmas em breve e em andamento.', target: 'tab-tarefas' },
-      { title: 'Notificações', content: 'Receba alertas sobre cursos próximos de iniciar ou finalizar.', target: 'notifications-btn' },
+      { title: 'Notificações', content: 'Receba alertas sobre cursos, tarefas e prazos.', target: 'iac-inbox-btn' },
       { title: 'Configurações', content: 'Gerencie usuários, importe dados, gere relatórios e configure o sistema.', target: 'tab-settings' }
     ];
     let currentTourStep = 0;
@@ -1253,20 +1322,16 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       if (!user || !window.database || !window.firebaseModules) return;
 
       hydrateCacheForUser(user.uid);
+      renderVisibleTab(getActiveTabName());
 
       if (window.firebaseModules.goOnline) {
         window.firebaseModules.goOnline(window.database);
       }
 
       setupRealtimeListeners();
-      refreshRemoteData()
-        .then(() => {
-          checkAndUpdateAllCourseStatuses({ persist: false });
-          renderVisibleTab(getActiveTabName());
-        })
-        .catch((error) => {
-          console.warn('Erro na sincronização pós-login:', error);
-        });
+      runWhenIdle(() => {
+        if (isLoggedIn) checkAndUpdateAllCourseStatuses({ persist: false });
+      }, 2500);
     }
 
     function initAuthAndSync() {
@@ -1523,6 +1588,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       errorDiv.classList.add('bg-blue-500/20', 'border-blue-500/50', 'text-blue-400');
 
       try {
+        setKeepLoggedIn(remember);
+        const box = document.getElementById('remember-login');
+        if (box) box.checked = remember;
         if (window.firebaseModules.setPersistence) {
           const persistence = remember
             ? window.firebaseModules.browserLocalPersistence
@@ -1540,6 +1608,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         if (loginLoading) loginLoading.classList.add('hidden');
         showToast('Login realizado com sucesso!', 'success');
         closeLoginModal();
+        initSessionTimeout();
       } catch (error) {
         console.error('Erro no login:', error);
         let errorMessage = 'Erro ao fazer login.';
@@ -1697,12 +1766,21 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       const ready = await waitForFirebaseReady();
       if (!ready) return;
 
+      if (keepLoggedIn() && window.firebaseModules.setPersistence && window.firebaseModules.browserLocalPersistence) {
+        try {
+          await window.firebaseModules.setPersistence(window.firebaseAuth, window.firebaseModules.browserLocalPersistence);
+        } catch (error) {
+          console.warn('Não foi possível restaurar a sessão permanente:', error);
+        }
+      }
+
       window.bootFirebaseSync();
 
       if (!syncPollInterval) {
         syncPollInterval = setInterval(() => {
+          if (realtimeListenersActive) return;
           pollRemoteSync();
-        }, 60000);
+        }, 180000);
       }
 
       setInterval(() => {
@@ -2442,7 +2520,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       activeTabCache = tab;
       window.__iacActiveTab = tab;
       if (persist && !coerced) rememberRoute(tab);
-      const navTab = (tab === 'instructors' || tab === 'auditoria' || tab === 'equipe') ? 'settings' : tab;
+      const navTab = (tab === 'auditoria' || tab === 'equipe') ? 'settings' : tab;
       // Remove active de todas as tabs
       const tabs = ['dashboard', 'situacao', 'comparativos', 'semana', 'cronograma', 'tarefas', 'demandas', 'calendario', 'auditoria', 'equipe', 'settings', 'instructors', 'course', 'instructor'];
       tabs.forEach(t => {
@@ -3573,9 +3651,13 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         courses[courseIndex].cozinha = cozinha;
         courses[courseIndex].dataInicio = dataInicio;
         courses[courseIndex].dataFim = dataFim;
+        const previousStatus = courses[courseIndex].status;
         courses[courseIndex].status = status;
         courses[courseIndex].turno = turno;
         courses[courseIndex].concludentes = concludentes;
+        if (!isCourseConcluido({ status: previousStatus }) && isCourseConcluido(courses[courseIndex])) {
+          createInstructorPaymentPending(courses[courseIndex], previousStatus);
+        }
         courses[courseIndex].lastModified = {
           by: currentUser?.email || 'Sistema',
           at: new Date().toISOString()
@@ -6521,6 +6603,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         instrumentaisLink: courses[courseIndex].instrumentaisLink
       };
 
+      const previousStatus = courses[courseIndex].status;
       const nextStatus = document.getElementById('cronograma-edit-status').value;
       const nextConcludentesRaw = document.getElementById('cronograma-edit-concludentes').value;
       const nextConcludentes = nextConcludentesRaw === '' ? null : parseInt(nextConcludentesRaw, 10);
@@ -6540,6 +6623,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       courses[courseIndex].turno = document.getElementById('cronograma-edit-turno').value || null;
       courses[courseIndex].concludentes = nextConcludentes;
       courses[courseIndex].instrutor = document.getElementById('cronograma-edit-instrutor').value.trim() || null;
+      syncCourseInstructorLink(courses[courseIndex]);
       courses[courseIndex].endereco = nextEndereco || null;
       courses[courseIndex].albumLink = nextAlbum || null;
       courses[courseIndex].instrumentaisLink = document.getElementById('cronograma-edit-instrumentais').value.trim() || null;
@@ -6550,6 +6634,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       updateCourseStatusAutomatically(courses[courseIndex]);
       preserveTurmaFormadaFlag(courses[courseIndex], hadTurmaFormada);
+      if (!isCourseConcluido({ status: previousStatus }) && isCourseConcluido(courses[courseIndex])) {
+        createInstructorPaymentPending(courses[courseIndex], previousStatus);
+      }
 
       // Preparar mudanças para log
       const changes = {};
@@ -7502,9 +7589,10 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
     }
 
     function updateNotificationsBadge() {
-      const badge = document.getElementById('notifications-badge');
+      const badge = document.getElementById('iac-inbox-badge');
       if (!badge) return;
-      const count = unseenNotificationCount();
+      const inbox = window.IACNotify && typeof window.IACNotify.unread === 'function' ? window.IACNotify.unread() : 0;
+      const count = unseenNotificationCount() + inbox;
       if (count > 0) {
         badge.textContent = count > 99 ? '99+' : String(count);
         badge.classList.remove('hidden');
@@ -7512,6 +7600,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         badge.classList.add('hidden');
       }
     }
+    window.updateNotificationsBadge = updateNotificationsBadge;
 
     function markNotificationsSeen() {
       notifications.forEach((notif) => { notifSeen[notif.id] = notif.signature; });
@@ -7524,7 +7613,6 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       markNotificationsSeen();
       document.getElementById('notifications-modal').classList.remove('hidden');
       document.body.classList.add('modal-open');
-      switchNotificationTab('courses');
       renderNotifications();
     }
 
@@ -7544,162 +7632,100 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       document.body.classList.remove('modal-open');
     }
 
-    let currentNotificationTab = 'courses';
-
-    function switchNotificationTab(tab) {
-      currentNotificationTab = tab;
-      
-      // Atualizar botões das abas
-      document.getElementById('notif-tab-courses').classList.remove('text-foreground', 'border-[#007AFF]');
-      document.getElementById('notif-tab-courses').classList.add('text-muted-foreground', 'border-transparent');
-      document.getElementById('notif-tab-tasks').classList.remove('text-foreground', 'border-[#007AFF]');
-      document.getElementById('notif-tab-tasks').classList.add('text-muted-foreground', 'border-transparent');
-      
-      // Esconder todas as listas
-      document.getElementById('notifications-list-courses').classList.add('hidden');
-      document.getElementById('notifications-list-tasks').classList.add('hidden');
-      
-      // Mostrar a aba selecionada
-      if (tab === 'courses') {
-        document.getElementById('notif-tab-courses').classList.remove('text-muted-foreground', 'border-transparent');
-        document.getElementById('notif-tab-courses').classList.add('text-foreground', 'border-[#007AFF]');
-        document.getElementById('notifications-list-courses').classList.remove('hidden');
-      } else {
-        document.getElementById('notif-tab-tasks').classList.remove('text-muted-foreground', 'border-transparent');
-        document.getElementById('notif-tab-tasks').classList.add('text-foreground', 'border-[#007AFF]');
-        document.getElementById('notifications-list-tasks').classList.remove('hidden');
-      }
-      
-      renderNotifications();
+    function inboxAlerts() {
+      if (!window.IACNotify || typeof window.IACNotify.entries !== 'function') return [];
+      return window.IACNotify.entries().map((item) => ({
+        id: 'inbox:' + item.id,
+        inboxId: item.id,
+        type: 'inbox',
+        kind: item.category || 'aviso',
+        rank: /atras/i.test(item.title || '') ? 0 : 6,
+        priority: /atras/i.test(item.title || '') ? 'high' : 'medium',
+        title: item.title || 'Aviso',
+        message: item.description || '',
+        relatedType: item.relatedType || '',
+        relatedId: item.relatedId || ''
+      }));
     }
 
     function renderNotifications() {
-      const coursesContainer = document.getElementById('notifications-list-courses');
-      const tasksContainer = document.getElementById('notifications-list-tasks');
-      
-      if (!coursesContainer || !tasksContainer) return;
-
-      // Separar notificações por tipo
-      const courseNotifications = notifications.filter(n => n.type === 'course');
-      const taskNotifications = notifications.filter(n => n.type === 'overdue' || n.type === 'upcoming');
-
-      // Renderizar notificações de cursos
-      if (courseNotifications.length === 0) {
-        coursesContainer.innerHTML = `
-          <div class="text-center py-8 text-muted-foreground">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p>Nenhuma notificação de cursos no momento</p>
-          </div>
-        `;
-      } else {
-        const kindLabel = {
-          vencido: 'Término vencido',
-          fechamento: 'Fechamento incompleto',
-          instrutor: 'Sem instrutor',
-          termino: 'Término próximo',
-          inicio: 'Início próximo'
-        };
-        coursesContainer.innerHTML = courseNotifications.map(notif => {
-          const dateStr = notif.courseDate ? formatDate(notif.courseDate) : '-';
-          const iconColor = notif.priority === 'high' ? '#FF3B30' : '#FF9500';
+      const container = document.getElementById('notifications-list');
+      if (!container) return;
+      const kindLabel = {
+        vencido: 'Término vencido',
+        fechamento: 'Fechamento incompleto',
+        instrutor: 'Sem instrutor',
+        termino: 'Término próximo',
+        inicio: 'Início próximo',
+        overdue: 'Atrasado',
+        upcoming: 'Lembrete',
+        demandas: 'Demanda',
+        calendario: 'Calendário',
+        equipe: 'Equipe',
+        aviso: 'Aviso'
+      };
+      const items = notifications.concat(inboxAlerts()).sort((a, b) => (a.rank || 9) - (b.rank || 9));
+      if (!items.length) {
+        container.innerHTML = '<div class="notif-empty">Nenhuma notificação no momento.</div>';
+        return;
+      }
+      container.innerHTML = items.map((notif) => {
+        const high = notif.priority === 'high';
+        const label = kindLabel[notif.kind] || kindLabel[notif.type] || 'Aviso';
+        let title = notif.courseName || notif.itemTitle || notif.title || 'Aviso';
+        let meta = '';
+        let actions = '';
+        if (notif.type === 'course') {
+          const dateStr = notif.courseDate ? formatDate(notif.courseDate) : '';
           const courseId = jsAttr(notif.courseId);
-          return `
-            <div class="card-elegant rounded-[16px] p-4 border-l-4 relative" style="border-left-color: ${iconColor};">
-              <button onclick="deleteNotification('${jsAttr(notif.id)}')" class="absolute top-3 right-3 p-1.5 text-[#8e8e93] hover:text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[8px] transition-colors" title="Dispensar até a situação mudar">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <div class="flex items-start gap-3 mb-3 pr-8">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <p class="text-xs font-semibold uppercase tracking-wider" style="color: ${iconColor};">${escapeHtml(kindLabel[notif.kind] || 'Turma')}</p>
-                    ${notif.priority === 'high' ? '<span class="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-semibold rounded-full">Urgente</span>' : ''}
-                  </div>
-                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${escapeHtml(notif.courseName)}</p>
-                  <p class="text-xs text-[#8e8e93] font-mono mb-1">ID: ${escapeHtml(notif.courseIdCurso)}${dateStr && dateStr !== '-' ? ' · ' + escapeHtml(dateStr) : ''}</p>
-                </div>
-              </div>
-              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${escapeHtml(notif.message)}</p>
-              <div class="flex gap-2">
-                <button onclick="openCourseFromNotification('${courseId}')" class="flex-1 px-4 py-2.5 bg-[rgba(0,122,255,0.12)] text-[#007AFF] rounded-[10px] text-sm font-semibold">Ver turma</button>
-                ${notif.action === 'conclude' ? `<button onclick="concludeFromNotification('${courseId}')" class="flex-1 px-4 py-2.5 bg-[#007AFF] hover:bg-[#0051D5] text-white rounded-[10px] text-sm font-semibold">Concluir</button>` : ''}
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // Renderizar notificações de tarefas/eventos
-      if (taskNotifications.length === 0) {
-        tasksContainer.innerHTML = `
-          <div class="text-center py-8 text-muted-foreground">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p>Nenhuma notificação de tarefas/eventos no momento</p>
-          </div>
-        `;
-      } else {
-        tasksContainer.innerHTML = taskNotifications.map(notif => {
-          const iconColor = notif.priority === 'high' ? '#FF3B30' : notif.priority === 'medium' ? '#FF9500' : '#007AFF';
-
-          // Encontrar a tarefa/evento correspondente
-          const allItems = [...calendarEvents, ...calendarTasks];
-          const item = allItems.find(i => i.id === notif.itemId);
+          meta = 'ID: ' + (notif.courseIdCurso || '—') + (dateStr ? ' · ' + dateStr : '');
+          actions = `<button type="button" class="notif-btn-ghost" onclick="openCourseFromNotification('${courseId}')">Ver turma</button>`
+            + (notif.action === 'conclude' ? `<button type="button" class="notif-btn-solid" onclick="concludeFromNotification('${courseId}')">Concluir</button>` : '');
+        } else if (notif.type === 'inbox') {
+          meta = label;
+          actions = `<button type="button" class="notif-btn-solid" onclick="openInboxFromNotification('${jsAttr(notif.inboxId)}')">Abrir</button>`;
+        } else {
+          const allItems = calendarEvents.concat(calendarTasks);
+          const item = allItems.find((entry) => entry.id === notif.itemId);
           const isTask = item && item.type === 'task';
-          const isCompleted = item && item.completed;
-          const dateStr = item && item.date ? formatDate(item.date) : '-';
-          const timeAgo = item && item.date ? getTimeAgo(new Date(item.date)) : '-';
-
-          return `
-            <div class="card-elegant rounded-[16px] p-4 border-l-4 relative" style="border-left-color: ${iconColor};">
-              <button onclick="deleteNotification('${notif.id}')" class="absolute top-3 right-3 p-1.5 text-[#8e8e93] hover:text-[#FF3B30] hover:bg-[rgba(255,59,48,0.1)] rounded-[8px] transition-colors" title="Excluir notificação">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <div class="flex items-start gap-3 mb-3 pr-8">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background-color: ${iconColor}20;">
-                  ${isTask ? 
-                    '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color: ' + iconColor + ';" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>' :
-                    '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color: ' + iconColor + ';" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>'
-                  }
-              </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <p class="text-xs font-semibold uppercase tracking-wider" style="color: ${iconColor};">${isTask ? '📋 Tarefa' : '📅 Evento'}</p>
-                    ${notif.priority === 'high' ? '<span class="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-semibold rounded-full">Urgente</span>' : ''}
-                    ${isCompleted ? '<span class="px-2 py-0.5 bg-[#34C759] text-white text-xs font-semibold rounded-full">✓ Concluída</span>' : ''}
-                  </div>
-                  <p class="text-sm font-semibold text-[#1d1d1f] dark:text-[#f5f5f7] mb-1">${escapeHtml(notif.itemTitle)}</p>
-                  ${item && item.date ? `
-                    <div class="flex items-center gap-2 text-xs text-[#8e8e93]">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span>${dateStr}</span>
-                      <span>•</span>
-                      <span>${timeAgo}</span>
-                    </div>
-                  ` : ''}
-                </div>
-              </div>
-              <p class="text-sm text-[#1d1d1f] dark:text-[#f5f5f7] mb-3">${escapeHtml(notif.message)}</p>
-              ${isTask && !isCompleted ? `
-                <button onclick="markTaskAsCompletedFromNotification('${notif.itemId}', '${notif.id}')" class="w-full px-4 py-2.5 bg-[#34C759] hover:bg-[#30D158] text-white rounded-[10px] text-sm font-semibold transition-colors shadow-sm">
-                  Marcar como Realizada
-                </button>
-              ` : ''}
+          meta = item && item.date ? formatDate(item.date) : label;
+          title = notif.itemTitle || title;
+          actions = `<button type="button" class="notif-btn-ghost" onclick="openAgendaFromNotification()">Ver agenda</button>`
+            + (isTask && item && !item.completed ? `<button type="button" class="notif-btn-solid" onclick="markTaskAsCompletedFromNotification('${jsAttr(notif.itemId)}','${jsAttr(notif.id)}')">Concluir</button>` : '');
+        }
+        return `
+          <article class="notif-card">
+            <button type="button" class="notif-x" onclick="deleteNotification('${jsAttr(notif.id)}')" aria-label="Dispensar">×</button>
+            <div class="notif-top">
+              <span class="notif-kicker ${high ? 'high' : 'mid'}">${escapeHtml(label)}</span>
+              ${high ? '<span class="notif-urgent">Urgente</span>' : ''}
             </div>
-          `;
-        }).join('');
-      }
+            <h3 class="notif-title">${escapeHtml(title)}</h3>
+            ${meta ? `<p class="notif-meta">${escapeHtml(meta)}</p>` : ''}
+            <p class="notif-msg">${escapeHtml(notif.message || '')}</p>
+            <div class="notif-actions">${actions}</div>
+          </article>`;
+      }).join('');
+    }
+
+    function openAgendaFromNotification() {
+      closeNotificationsModal();
+      if (typeof switchTab === 'function') switchTab('calendario');
+    }
+
+    function openInboxFromNotification(id) {
+      closeNotificationsModal();
+      if (window.IACNotify && typeof window.IACNotify.openItem === 'function') window.IACNotify.openItem(id);
     }
 
     function deleteNotification(notificationId) {
+      if (String(notificationId).indexOf('inbox:') === 0) {
+        const inboxId = String(notificationId).slice(6);
+        if (window.IACNotify && typeof window.IACNotify.dismiss === 'function') window.IACNotify.dismiss(inboxId);
+        renderNotifications();
+        updateNotificationsBadge();
+        return;
+      }
       const index = notifications.findIndex(n => n.id === notificationId);
       if (index === -1) return;
       notifDismissed[notifications[index].id] = notifications[index].signature;
@@ -7711,6 +7737,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
     function deleteAllNotifications() {
       if (!confirm('Dispensar os avisos atuais até a situação mudar?')) return;
+      if (window.IACNotify && typeof window.IACNotify.markAll === 'function') window.IACNotify.markAll();
       notifications.forEach((notif) => { notifDismissed[notif.id] = notif.signature; });
       saveNotifMemory();
       notifications = [];
@@ -7800,6 +7827,9 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
       const oldStatus = courses[courseIndex].status;
       courses[courseIndex].status = newStatus;
+      if (!isCourseConcluido({ status: oldStatus }) && isCourseConcluido(courses[courseIndex])) {
+        createInstructorPaymentPending(courses[courseIndex], oldStatus);
+      }
       if (isCourseConcluido({ status: newStatus })) {
         courses[courseIndex].concludentes = concludentes;
       }
@@ -7980,18 +8010,14 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
 
     // Inicializar notificações e calendário
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
-        checkNotifications();
-        setInterval(checkNotifications, 3600000);
-      }, 1000);
-      
-      // Inicializar tour na primeira visita
-      setTimeout(() => {
-        if (!localStorage.getItem('tour-completed') && isLoggedIn) {
-          startTour();
-        }
+      const rememberBox = document.getElementById('remember-login');
+      if (rememberBox) rememberBox.checked = keepLoggedIn();
+      runWhenIdle(() => {
+        if (isLoggedIn) checkNotifications();
       }, 2000);
-      
+      setTimeout(() => {
+        if (!localStorage.getItem('tour-completed') && isLoggedIn) startTour();
+      }, 2500);
       initSessionTimeout();
     });
 
@@ -8863,28 +8889,41 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
       document.body.appendChild(modal);
     }
 
-    // ========== TIMEOUT DE SESSÃO ==========
-    function initSessionTimeout() {
-      const TIMEOUT_DURATION = 30 * 60 * 1000;
-      
-      function resetTimeout() {
-        lastActionTime = Date.now();
-        if (sessionTimeout) clearTimeout(sessionTimeout);
-        
-        sessionTimeout = setTimeout(() => {
-          if (isLoggedIn) {
-            showToast('Sessão expirada por inatividade. Faça login novamente.', 'warning', 5000);
-            handleLogout(true);
-          }
-        }, TIMEOUT_DURATION);
-      }
+    const REMEMBER_KEY = 'iac-keep-logged-in';
 
-      ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-        document.addEventListener(event, resetTimeout, true);
-      });
-
-      resetTimeout();
+    function keepLoggedIn() {
+      try { return localStorage.getItem(REMEMBER_KEY) === '1'; } catch (error) { return false; }
     }
+
+    function setKeepLoggedIn(on) {
+      try {
+        if (on) localStorage.setItem(REMEMBER_KEY, '1');
+        else localStorage.removeItem(REMEMBER_KEY);
+      } catch (error) {}
+    }
+
+    function initSessionTimeout() {
+      if (sessionTimeout) clearTimeout(sessionTimeout);
+      sessionTimeout = null;
+      if (!isLoggedIn || keepLoggedIn()) return;
+      sessionTimeout = setTimeout(() => {
+        if (!isLoggedIn || keepLoggedIn()) return;
+        showToast('Sessão expirada por inatividade. Faça login novamente.', 'warning', 5000);
+        handleLogout(true);
+      }, 30 * 60 * 1000);
+    }
+
+    function noteActivity() {
+      if (!isLoggedIn || keepLoggedIn()) return;
+      const now = Date.now();
+      if (now - lastActionTime < 60000) return;
+      lastActionTime = now;
+      initSessionTimeout();
+    }
+
+    ['pointerdown', 'keydown'].forEach((eventName) => {
+      document.addEventListener(eventName, noteActivity, { passive: true });
+    });
 
     // ========== PROTEÇÃO CONTRA AÇÕES DUPLICADAS ==========
     function preventDuplicateAction(actionId, actionFn, delay = 1000) {

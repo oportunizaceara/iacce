@@ -327,3 +327,35 @@ body.dark .glass-swatch.is-on {
 @media (max-width: 520px) {
   .glass-swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+body.dark { --glass-ink: #f4f7fb; }
+body.dark .text-\[\#1d1d1f\],
+body.dark .text-foreground,
+body.dark .text-card-foreground,
+body.dark .text-secondary-foreground {
+  color: #f5f5f7 !important;
+}
+body.dark .side-title,
+body.dark .glass-appearance legend,
+body.dark .glass-swatch,
+body.dark .iac-head h2,
+body.dark .iac-cal-title,
+body.dark .iac-table td,
+body.dark .iac-table th,
+body.dark .iac-checks label,
+body.dark .iac-icon-btn,
+body.dark .iac-btn.secondary,
+body.dark .compare-head h4,
+body.dark .fila-item strong,
+body.dark .board-card,
+body.dark .board-card strong,
+body.dark .instructor-card h3,
+body.dark .section-title-sm {
+  color: #f5f5f7;
+}
+body.dark .iac-icon-btn svg,
+body.dark .board-card svg,
+body.dark .header-fixed svg {
+  color: inherit;
+  stroke: currentColor;
+}
