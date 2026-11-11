@@ -274,6 +274,11 @@ let instructorCourseSearchOpen = false;
     host.innerHTML = '<iframe title="Mapa do endereço do curso" src="' + src.replace(/"/g, '%22') + '" loading="eager" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
   }
 
+  function courseHttpLink(value) {
+    const raw = String(value || '').trim();
+    return /^https?:\/\//i.test(raw) ? raw : '';
+  }
+
   function detailIcon(name) {
     const paths = {
       info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
@@ -285,7 +290,9 @@ let instructorCourseSearchOpen = false;
       clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
       home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/>',
       people: '<circle cx="9" cy="9" r="2.2"/><circle cx="15" cy="9" r="2.2"/><path d="M4.5 18c.6-2.4 2.4-3.6 4.5-3.6s3.9 1.2 4.5 3.6M13 14.4c2 .1 3.6 1.2 4.5 3.6"/>',
-      cap: '<path d="M3 10l9-5 9 5-9 5-9-5z"/><path d="M7 12.2V16c1.6 1.2 3.2 1.8 5 1.8s3.4-.6 5-1.8v-3.8"/>'
+      cap: '<path d="M3 10l9-5 9 5-9 5-9-5z"/><path d="M7 12.2V16c1.6 1.2 3.2 1.8 5 1.8s3.4-.6 5-1.8v-3.8"/>',
+      photo: '<rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M9 6l1.2-1.6h3.6L15 6"/>',
+      folder: '<path d="M4 8a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>'
     };
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.info}</svg>`;
   }
@@ -348,6 +355,12 @@ let instructorCourseSearchOpen = false;
     const status = course.status || 'Pendente';
     const note = String(course.observacoes || '').trim();
     const art = courseIllustration(course.tipologia);
+    const album = courseHttpLink(course.albumLink);
+    const instrumentais = courseHttpLink(course.instrumentaisLink);
+    const links = [
+      album ? `<a class="cdetail-link cdetail-link--album" href="${escapeHtml(album)}" target="_blank" rel="noopener">${detailIcon('photo')} Álbum</a>` : '',
+      instrumentais ? `<a class="cdetail-link cdetail-link--files" href="${escapeHtml(instrumentais)}" target="_blank" rel="noopener">${detailIcon('folder')} Instrumentais</a>` : ''
+    ].filter(Boolean).join('');
     return `
       <header class="cdetail-banner">
         <span class="cdetail-logo">${art}</span>
@@ -373,6 +386,7 @@ let instructorCourseSearchOpen = false;
           <article><span class="cdetail-fact-icon cdetail-fact-icon--green">${detailIcon('clock')}</span><div><small>Carga horária</small><strong>${escapeHtml(hours)}</strong></div></article>
           <article><span class="cdetail-fact-icon cdetail-fact-icon--amber">${detailIcon('home')}</span><div><small>Cozinha</small><strong>${escapeHtml(kitchen)}</strong></div></article>
         </div>
+        ${links ? `<div class="cdetail-links">${links}</div>` : ''}
         <div class="cdetail-stage">
           <section class="cdetail-address">
             <div class="cdetail-address-copy">

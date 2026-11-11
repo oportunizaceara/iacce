@@ -1571,6 +1571,16 @@
       background: rgba(255,255,255,.18); color: #fff; font-size: 22px; line-height: 1;
     }
     .cdetail-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .cdetail-links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .cdetail-link {
+      flex: 1; min-width: 140px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 12px; padding: 10px 12px; font-weight: 700; text-decoration: none;
+    }
+    .cdetail-link svg { width: 18px; height: 18px; }
+    .cdetail-link--album { background: rgba(0,122,255,.12); color: #007aff; }
+    .cdetail-link--files { background: rgba(52,199,89,.14); color: #248a3d; }
+    body.dark .cdetail-link--album { background: rgba(0,122,255,.22); color: #8ec5ff; }
+    body.dark .cdetail-link--files { background: rgba(52,199,89,.18); color: #30d158; }
     .cdetail-facts, .cdetail-chips { display: grid; gap: 10px; }
     .cdetail-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .cdetail-chips { grid-template-columns: repeat(5, minmax(0, 1fr)); }
