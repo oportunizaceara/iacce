@@ -359,3 +359,147 @@ body.dark .header-fixed svg {
   color: inherit;
   stroke: currentColor;
 }
+
+.app-tabbar { display: none; }
+
+@media (max-width: 767px) {
+  html, body { max-width: 100%; }
+
+  #app > header.header-fixed {
+    margin: 0 !important;
+    width: 100% !important;
+    left: 0;
+    right: 0;
+    border-radius: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  #app > header.header-fixed .container {
+    padding-left: 6px !important;
+    padding-right: 10px !important;
+    gap: 8px;
+  }
+
+  #sidebar-toggle {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: auto;
+    background: transparent;
+  }
+
+  .header-compact .w-10 { display: none; }
+
+  .app-sidebar {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px);
+    border-radius: 0 22px 22px 0;
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+    gap: 2px;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, 0.94);
+    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+  }
+
+  body.dark .app-tabbar {
+    background: rgba(28, 28, 30, 0.94);
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .app-tabbar button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: #8e8e93;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    touch-action: manipulation;
+  }
+
+  .app-tabbar button svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .app-tabbar button.active {
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.1);
+  }
+
+  body:not(.sidebar-collapsed) #tab-more-bar { color: #007aff; }
+
+  #app > main,
+  #content-perfillote.pl-host {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .fab { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .fab-menu { bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
+
+  .section-title { font-size: 1.45rem !important; line-height: 1.2; }
+  #app h2.text-3xl { font-size: 1.45rem !important; }
+
+  #content-cronograma .card-secondary .flex.items-center.justify-between,
+  #content-cronograma .card-secondary .flex.items-center.gap-2 {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #content-cronograma .card-secondary label { width: 100%; }
+
+  #cronograma-group-by,
+  #content-cronograma .card-secondary select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .modal-content .grid-cols-2,
+  .modal-content .grid-cols-3,
+  .modal-content .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .modal-content .grid > * { min-width: 0; }
+  .modal-content input,
+  .modal-content select,
+  .modal-content textarea { max-width: 100%; }
+
+  .iac-cal { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .iac-cal-grid,
+  .iac-weekdays { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .iac-day { min-height: 72px; }
+
+  .overflow-x-auto,
+  .iac-table,
+  .ops-table { max-width: 100%; }
+
+  .card-elegant,
+  .card-secondary { max-width: 100%; }
+
+  .status-badge { white-space: normal; text-align: right; }
+}

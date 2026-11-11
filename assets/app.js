@@ -2540,6 +2540,8 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
           tabMobileEl.classList.remove('border-[#007AFF]');
           tabMobileEl.classList.add('border-transparent');
         }
+        const tabBarEl = document.getElementById(`tab-${t}-bar`);
+        if (tabBarEl) tabBarEl.classList.remove('active');
         if (contentEl) {
           contentEl.classList.add('hidden');
         }
@@ -2560,6 +2562,11 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
         selectedTabMobile.classList.remove('border-transparent');
         selectedTabMobile.classList.add('border-[#007AFF]');
       }
+      const selectedTabBar = document.getElementById(`tab-${navTab}-bar`);
+      const moreTabBar = document.getElementById('tab-more-bar');
+      if (moreTabBar) moreTabBar.classList.remove('active');
+      if (selectedTabBar) selectedTabBar.classList.add('active');
+      else if (moreTabBar) moreTabBar.classList.add('active');
       if (selectedContent) {
         selectedContent.classList.remove('hidden');
         selectedContent.style.display = '';
@@ -6020,7 +6027,7 @@ const STORAGE_KEY_COURSES = 'dashboard_courses';
                   <span class="text-xs">${formatDate(course.dataInicio)} - ${course.dataFim ? formatDate(course.dataFim) : '?'}</span>
                 </div>
                 ` : ''}
-                ${course.concludentes !== null ? `
+                ${course.concludentes != null && course.concludentes !== '' ? `
                 <div class="flex items-center gap-2 text-[#8e8e93]">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />

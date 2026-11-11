@@ -80,10 +80,10 @@
   </style>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
-  <link rel="stylesheet" href="assets/app.css?v=93">
+  <link rel="stylesheet" href="assets/app.css?v=95">
   <link rel="stylesheet" href="assets/shell.css?v=75">
   <link rel="stylesheet" href="assets/modules.css?v=68">
-  <link rel="stylesheet" href="assets/glass.css?v=88">
+  <link rel="stylesheet" href="assets/glass.css?v=89">
 </head>
 <body class="min-h-screen guest-mode">
   <script>
@@ -303,6 +303,29 @@
         </button>
       </div>
     </aside>
+
+    <nav class="app-tabbar" aria-label="Navegação principal">
+      <button type="button" id="tab-dashboard-bar" class="guest-app" onclick="switchTab('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h7v7H4zM13 6h7v4h-7zM13 14h7v4h-7zM4 17h7v1H4z"/></svg>
+        Painel
+      </button>
+      <button type="button" id="tab-cronograma-bar" class="active" onclick="switchTab('cronograma')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Cursos
+      </button>
+      <button type="button" id="tab-demandas-bar" class="guest-app" onclick="switchTab('demandas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Demandas
+      </button>
+      <button type="button" id="tab-calendario-bar" class="guest-app" onclick="switchTab('calendario')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4M16 3v4M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>
+        Agenda
+      </button>
+      <button type="button" id="tab-more-bar" onclick="toggleMenuDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+        Mais
+      </button>
+    </nav>
 
     <!-- Header compacto -->
     <header class="header-fixed header-compact">
@@ -2001,13 +2024,13 @@
   </script>
   <script defer src="assets/dates.js?v=45"></script>
   <script defer src="assets/instructors-boot.js?v=45"></script>
-  <script defer src="assets/app.js?v=91"></script>
+  <script defer src="assets/app.js?v=94"></script>
   <script defer src="assets/team.js?v=70"></script>
   <script defer src="assets/audit.js?v=59"></script>
   <script defer src="assets/demands.js?v=68"></script>
   <script defer src="assets/calendar-board.js?v=76"></script>
   <script defer src="assets/notify-center.js?v=91"></script>
-  <script defer src="assets/views.js?v=92"></script>
+  <script defer src="assets/views.js?v=94"></script>
   <script defer src="assets/indicators.js?v=52"></script>
 </body>
 </html>

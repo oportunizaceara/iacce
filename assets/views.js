@@ -170,7 +170,14 @@ let instructorCourseSearchOpen = false;
         tabMobileEl.classList.toggle('border-[#007AFF]', t === tab);
         tabMobileEl.classList.toggle('border-transparent', t !== tab);
       }
+      const tabBarEl = document.getElementById(`tab-${t}-bar`);
+      if (tabBarEl) tabBarEl.classList.toggle('active', t === tab);
     });
+    const moreTabBar = document.getElementById('tab-more-bar');
+    if (moreTabBar) {
+      const inBar = ['dashboard', 'cronograma', 'demandas', 'calendario'].includes(tab);
+      moreTabBar.classList.toggle('active', !inBar);
+    }
   }
 
 
