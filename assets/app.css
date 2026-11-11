@@ -1677,13 +1677,26 @@
         max-width: 100% !important;
         border-radius: 0 !important;
       }
-      .cdetail-banner { align-items: flex-start; padding: 16px 56px 14px 14px; }
-      .cdetail-logo { width: 44px; height: 44px; }
-      .cdetail-banner h1 { font-size: 1.15rem; }
+      .cdetail-banner {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        align-items: flex-start;
+        padding: calc(env(safe-area-inset-top, 0px) + 14px) 58px 14px 14px;
+      }
+      .cdetail-logo { width: 44px; height: 44px; margin-top: 2px; }
+      .cdetail-banner h1 { font-size: 1.2rem; }
       .cdetail-banner-text { min-width: 0; flex: 1 1 calc(100% - 70px); }
-      .cdetail-actions { width: 100%; flex-basis: 100%; justify-content: flex-start; }
-      .cdetail-btn { padding: 8px 10px; font-size: 13px; }
-      .cdetail-x { position: absolute; top: 12px; right: 12px; margin: 0; }
+      .cdetail-actions { width: 100%; flex-basis: 100%; justify-content: flex-start; gap: 8px; }
+      .cdetail-btn { min-height: 40px; padding: 8px 12px; font-size: 14px; }
+      .cdetail-x {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 12px);
+        right: 12px;
+        width: 40px;
+        height: 40px;
+        margin: 0;
+      }
       .cdetail-map, .cdetail-map iframe { height: 180px; min-height: 180px; }
     }
     @media (max-width: 520px) {

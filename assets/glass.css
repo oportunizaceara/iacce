@@ -372,12 +372,26 @@ body.dark .header-fixed svg {
     right: 0;
     border-radius: 0 !important;
     padding-top: env(safe-area-inset-top, 0px);
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
   }
 
   #app > header.header-fixed .container {
-    padding-left: 6px !important;
-    padding-right: 10px !important;
+    padding-left: 8px !important;
+    padding-right: 12px !important;
     gap: 8px;
+    min-height: 56px;
+  }
+
+  #sidebar-toggle,
+  .mobile-account .login-cta,
+  .mobile-account .mobile-icon-btn,
+  .mobile-account .mobile-logout {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .modal-content:not(.course-modal-panel) {
+    padding-top: env(safe-area-inset-top, 0px) !important;
   }
 
   #sidebar-toggle {
